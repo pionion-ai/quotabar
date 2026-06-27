@@ -21,6 +21,8 @@ scheduled task / cron alert.
 ./claude_usage.py --json       # structured JSON for scripts/schedulers
 ./claude_usage.py --raw        # complete, unmodified API response
 ./claude_usage.py --threshold 90   # exit code 1 if any window is >= 90% used
+./claude_usage.py --api-credits        # also show API spend (needs Admin key)
+./claude_usage.py --api-credits --days 7   # API spend over the last 7 days
 ```
 
 ### Example
@@ -54,6 +56,24 @@ Claude Code usage  —  checked 2026-06-27T12:00:50+00:00
 
 `extra_usage` is populated only if your account has pay-as-you-go extra
 usage credits enabled.
+
+## API spend (`--api-credits`)
+
+`--api-credits` additionally reports your **Anthropic API** consumption (the
+separate `console.anthropic.com` billing account, distinct from the Claude
+Code subscription). It queries the Admin `cost_report` endpoint and sums spend
+over the last `--days` (default 30), broken down by model.
+
+This needs an **Admin API key** (`sk-ant-admin…`), which the subscription
+OAuth token cannot provide. Supply it either way:
+
+- environment variable: `export ANTHROPIC_ADMIN_KEY=sk-ant-admin...`
+- or a local `.secrets` file next to the script (gitignored):
+  `ANTHROPIC_ADMIN_KEY=sk-ant-admin...`
+
+> Note: this reports **consumed spend**, not a remaining prepaid-credit
+> balance — Anthropic exposes no public endpoint for the credit balance
+> itself; that figure lives only in the console Billing page.
 
 ## Scheduling
 

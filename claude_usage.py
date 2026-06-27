@@ -17,16 +17,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
+COST_REPORT_ENDPOINT = "https://api.anthropic.com/v1/organizations/cost_report"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
+SECRETS_FILE = Path(__file__).resolve().parent / ".secrets"
+ADMIN_KEY_VAR = "ANTHROPIC_ADMIN_KEY"
 
 # Friendly labels for the windows we care about, in display order.
 WINDOWS = [
@@ -101,6 +106,106 @@ def fetch_usage(token: str) -> dict:
         raise UsageError(f"Usage endpoint returned HTTP {exc.code}.") from exc
     except urllib.error.URLError as exc:
         raise UsageError(f"Could not reach the usage endpoint: {exc.reason}") from exc
+
+
+def read_admin_key() -> str:
+    """Return the Anthropic Admin API key (sk-ant-admin...).
+
+    Prefers the ANTHROPIC_ADMIN_KEY environment variable, then falls back to
+    the local .secrets file next to this script.
+    """
+    key = os.environ.get(ADMIN_KEY_VAR)
+    if key:
+        return key.strip()
+
+    if SECRETS_FILE.exists():
+        for line in SECRETS_FILE.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            if name.strip() == ADMIN_KEY_VAR:
+                return value.strip()
+
+    raise UsageError(
+        f"No admin key found. Set {ADMIN_KEY_VAR} or add it to {SECRETS_FILE.name}.\n"
+        "An Admin API key (sk-ant-admin...) is required for --api-credits."
+    )
+
+
+def fetch_cost_report(key: str, start: datetime) -> list[dict]:
+    """Return daily cost buckets from the Admin cost_report endpoint.
+
+    Follows pagination until all buckets in the window are collected.
+    """
+    buckets: list[dict] = []
+    page: str | None = None
+    starting_at = start.strftime("%Y-%m-%dT00:00:00Z")
+
+    while True:
+        params = {
+            "starting_at": starting_at,
+            "group_by[]": "description",
+            "limit": "31",
+        }
+        if page:
+            params["page"] = page
+        url = f"{COST_REPORT_ENDPOINT}?{urllib.parse.urlencode(params)}"
+        req = urllib.request.Request(
+            url,
+            headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                body = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                raise UsageError(
+                    f"Admin API rejected the key (HTTP {exc.code}). "
+                    "Check that it is a valid Admin key (sk-ant-admin...)."
+                ) from exc
+            raise UsageError(f"cost_report returned HTTP {exc.code}.") from exc
+        except urllib.error.URLError as exc:
+            raise UsageError(f"Could not reach the cost_report endpoint: {exc.reason}") from exc
+
+        buckets.extend(body.get("data", []))
+        if body.get("has_more") and body.get("next_page"):
+            page = body["next_page"]
+        else:
+            break
+
+    return buckets
+
+
+def build_cost_report(buckets: list[dict], start: datetime, now: datetime) -> dict:
+    """Aggregate cost buckets into a total plus per-model breakdown."""
+    total = 0.0
+    by_model: dict[str, float] = {}
+    for bucket in buckets:
+        for row in bucket.get("results", []):
+            amount = float(row.get("amount", 0))
+            total += amount
+            model = row.get("model") or "other"
+            by_model[model] = by_model.get(model, 0.0) + amount
+
+    return {
+        "period_start": start.isoformat(),
+        "period_end": now.isoformat(),
+        "currency": "USD",
+        "total_spend": round(total, 2),
+        "by_model": {m: round(v, 2) for m, v in sorted(by_model.items(), key=lambda x: -x[1])},
+    }
+
+
+def print_cost_report(report: dict, days: int) -> None:
+    print(f"\nAPI spend (Admin API)  —  last {days} days")
+    print("-" * 58)
+    print(f"Total: ${report['total_spend']:.2f} {report['currency']}")
+    if report["by_model"]:
+        for model, amount in report["by_model"].items():
+            print(f"  {model:<28} ${amount:>10.2f}")
+    print("note: this is consumed API spend, not a remaining credit balance —")
+    print("      prepaid credit balance is only visible in console Billing.")
 
 
 def parse_reset(value: str | None) -> datetime | None:
@@ -210,6 +315,18 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PCT",
         help="exit 1 if any active window is at or above PCT%% used (for alerts)",
     )
+    parser.add_argument(
+        "--api-credits",
+        action="store_true",
+        help="also report Anthropic API spend (needs an Admin key; see .secrets)",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        metavar="N",
+        help="window for --api-credits spend, in days (default 30)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -219,17 +336,35 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    now = datetime.now(timezone.utc)
+
+    cost_report = None
+    if args.api_credits:
+        try:
+            admin_key = read_admin_key()
+            start = (now - timedelta(days=args.days)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            buckets = fetch_cost_report(admin_key, start)
+            cost_report = build_cost_report(buckets, start, now)
+        except UsageError as exc:
+            print(f"error (--api-credits): {exc}", file=sys.stderr)
+            return 2
+
     if args.raw:
         print(json.dumps(data, indent=2))
         return 0
 
-    now = datetime.now(timezone.utc)
     report = build_report(data, now)
+    if cost_report is not None:
+        report["api_spend"] = cost_report
 
     if args.json:
         print(json.dumps(report, indent=2))
     else:
         print_human(report)
+        if cost_report is not None:
+            print_cost_report(cost_report, args.days)
 
     if args.threshold is not None:
         breached = [w for w in report["windows"] if w["used_percent"] >= args.threshold]
