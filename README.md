@@ -21,6 +21,7 @@ scheduled task / cron alert.
 ./claude_usage.py --json       # structured JSON for scripts/schedulers
 ./claude_usage.py --raw        # complete, unmodified API response
 ./claude_usage.py --threshold 90   # exit code 1 if any window is >= 90% used
+./claude_usage.py --estimate           # per-model token headroom per window
 ./claude_usage.py --api-credits        # also show API spend (needs Admin key)
 ./claude_usage.py --api-credits --days 7   # API spend over the last 7 days
 ```
@@ -56,6 +57,29 @@ Claude Code usage  —  checked 2026-06-27T12:00:50+00:00
 
 `extra_usage` is populated only if your account has pay-as-you-go extra
 usage credits enabled.
+
+## Token headroom estimate (`--estimate`)
+
+`--estimate` answers "how many more tokens can I use this window, per model."
+The usage endpoint only gives a cost-weighted *utilization %*, so the budget is
+recovered empirically:
+
+1. Measure cost actually spent in each window from local session logs.
+2. That spend is `utilization%` of the budget, so `budget = spent / (util/100)`.
+3. `remaining = budget - spent`, converted to tokens at each model's price.
+
+Because the subscription discount scales both the measured spend and the
+per-token price, it cancels — estimates are discount-independent (API
+list-price terms). They are **rough**: at low utilization the back-out
+amplifies measurement noise.
+
+- **Model list is read live** from the `/v1/models` API (newest model per price
+  tier), falling back to the families in `pricing.json` if the API is
+  unreachable. `models_source` in the output says which was used.
+- **Prices live in `pricing.json`** (editable data, not hardcoded in the
+  script) — keyed by a case-insensitive substring of the model id. The API
+  exposes no pricing field, so prices must be configured here; update this file
+  when prices change.
 
 ## API spend (`--api-credits`)
 

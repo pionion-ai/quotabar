@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import glob
 import json
 import os
 import subprocess
@@ -27,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
+MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 COST_REPORT_ENDPOINT = "https://api.anthropic.com/v1/organizations/cost_report"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
@@ -40,6 +42,21 @@ WINDOWS = [
     ("seven_day_opus", "7-day (Opus)"),
     ("seven_day_sonnet", "7-day (Sonnet)"),
 ]
+
+# Local session logs, and the two windows we can estimate token headroom for.
+SESSIONS_GLOB = str(Path.home() / ".claude" / "projects" / "*" / "*.jsonl")
+ESTIMATE_WINDOWS = [
+    ("five_hour", "5-hour session", timedelta(hours=5)),
+    ("seven_day", "7-day (all models)", timedelta(days=7)),
+]
+
+# Model list and per-1M-token prices live in pricing.json (data, not code), so
+# adding or repricing a model needs no source edit. Cache multipliers are fixed
+# ratios defined by the API and apply to every model.
+PRICING_FILE = Path(__file__).resolve().parent / "pricing.json"
+CACHE_READ_MULT = 0.10
+CACHE_WRITE_5M_MULT = 1.25
+CACHE_WRITE_1H_MULT = 2.0
 
 
 class UsageError(Exception):
@@ -106,6 +123,26 @@ def fetch_usage(token: str) -> dict:
         raise UsageError(f"Usage endpoint returned HTTP {exc.code}.") from exc
     except urllib.error.URLError as exc:
         raise UsageError(f"Could not reach the usage endpoint: {exc.reason}") from exc
+
+
+def fetch_models(token: str) -> list[dict]:
+    """Return the live list of available models (id, display_name) from the API.
+
+    Returns [] on any failure so callers can fall back to the pricing config.
+    """
+    req = urllib.request.Request(
+        f"{MODELS_ENDPOINT}?limit=100",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "oauth-2025-04-20",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode()).get("data", [])
+    except (urllib.error.URLError, json.JSONDecodeError):
+        return []
 
 
 def read_admin_key() -> str:
@@ -206,6 +243,169 @@ def print_cost_report(report: dict, days: int) -> None:
             print(f"  {model:<28} ${amount:>10.2f}")
     print("note: this is consumed API spend, not a remaining credit balance —")
     print("      prepaid credit balance is only visible in console Billing.")
+
+
+def load_pricing() -> dict:
+    """Load {family: (input_price, output_price)} from pricing.json."""
+    try:
+        raw = json.loads(PRICING_FILE.read_text())["prices"]
+    except (OSError, KeyError, json.JSONDecodeError) as exc:
+        raise UsageError(f"Could not read pricing from {PRICING_FILE.name}: {exc}") from exc
+    return {fam: (p["input"], p["output"]) for fam, p in raw.items()}
+
+
+def model_family(model: str | None, pricing: dict) -> str:
+    """Match a model id to a configured family by substring.
+
+    Unmatched models fall back to the most expensive family (conservative).
+    """
+    m = (model or "").lower()
+    for fam in pricing:
+        if fam.lower() in m:
+            return fam
+    return max(pricing, key=lambda f: pricing[f][1])
+
+
+def message_cost_usd(model: str, usage: dict, pricing: dict) -> float:
+    """API list-price cost of a single assistant message."""
+    in_price, out_price = pricing[model_family(model, pricing)]
+    per = in_price / 1_000_000
+    out_per = out_price / 1_000_000
+
+    cache = usage.get("cache_creation") or {}
+    write_5m = cache.get("ephemeral_5m_input_tokens", 0)
+    write_1h = cache.get("ephemeral_1h_input_tokens", 0)
+    if not (write_5m or write_1h):
+        write_5m = usage.get("cache_creation_input_tokens", 0)
+
+    return (
+        usage.get("input_tokens", 0) * per
+        + usage.get("cache_read_input_tokens", 0) * per * CACHE_READ_MULT
+        + write_5m * per * CACHE_WRITE_5M_MULT
+        + write_1h * per * CACHE_WRITE_1H_MULT
+        + usage.get("output_tokens", 0) * out_per
+    )
+
+
+def iter_usage_records():
+    """Yield (timestamp, model, usage_dict) for every assistant message logged."""
+    for path in glob.glob(SESSIONS_GLOB):
+        try:
+            with open(path) as fh:
+                for line in fh:
+                    try:
+                        d = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    msg = d.get("message")
+                    ts = d.get("timestamp")
+                    if not isinstance(msg, dict) or not msg.get("usage") or not ts:
+                        continue
+                    try:
+                        when = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    except ValueError:
+                        continue
+                    yield when, msg.get("model"), msg["usage"]
+        except OSError:
+            continue
+
+
+def model_tiers(models: list[dict], pricing: dict) -> list[tuple[str, float, float]]:
+    """Pick one representative live model per price tier.
+
+    Returns [(model_id, input_price, output_price)] ordered most→least
+    expensive. Uses the live model list (newest id per family wins) when
+    available, else falls back to the family names from pricing.json.
+    """
+    tiers: dict[str, str] = {}
+    for m in models:  # API returns newest first, so first id per family wins
+        fam = model_family(m.get("id"), pricing)
+        tiers.setdefault(fam, m.get("id"))
+
+    if not tiers:  # API unavailable — fall back to config families
+        tiers = {fam: fam for fam in pricing}
+
+    rows = [(label, *pricing[fam]) for fam, label in tiers.items()]
+    return sorted(rows, key=lambda r: r[2], reverse=True)
+
+
+def build_estimate(data: dict, now: datetime, token: str) -> dict:
+    """Estimate per-model token headroom for each window.
+
+    Recovers each window's budget from measured local spend vs. the reported
+    utilization %, then converts the remaining budget into tokens per model.
+    The subscription discount cancels (it scales spend and price alike), so
+    everything is in API list-price terms. Rough — noisy at low utilization.
+    The model list is read live from the API; prices come from pricing.json.
+    """
+    pricing = load_pricing()
+    models = fetch_models(token)
+    tiers = model_tiers(models, pricing)
+    records = list(iter_usage_records())
+
+    windows = []
+    for key, label, length in ESTIMATE_WINDOWS:
+        block = data.get(key) or {}
+        util = block.get("utilization")
+        reset = parse_reset(block.get("resets_at"))
+        if util is None or reset is None:
+            continue
+
+        start = reset - length
+        spent = sum(
+            message_cost_usd(model, usage, pricing)
+            for when, model, usage in records
+            if start <= when <= now
+        )
+
+        entry = {
+            "label": label,
+            "used_percent": round(float(util), 1),
+            "resets_in": humanize_delta(reset, now),
+            "measured_spend": round(spent, 2),
+        }
+        if util > 0 and spent > 0:
+            budget = spent / (util / 100)
+            remaining = budget - spent
+            entry["est_budget"] = round(budget, 2)
+            entry["est_remaining"] = round(remaining, 2)
+            entry["tokens"] = {
+                model_id: {
+                    "as_output": round(remaining / (out_price / 1_000_000)),
+                    "as_input": round(remaining / (in_price / 1_000_000)),
+                }
+                for model_id, in_price, out_price in tiers
+            }
+        else:
+            entry["note"] = (
+                "window just reset" if util <= 0 else "no local usage in window"
+            )
+        windows.append(entry)
+
+    return {
+        "basis": "api_list_price_equivalent",
+        "models_source": "live_api" if models else "pricing_config",
+        "windows": windows,
+    }
+
+
+def print_estimate(estimate: dict) -> None:
+    print("\nToken headroom estimate (API list-price equivalent)")
+    print(f"models: {estimate['models_source']}")
+    print("-" * 58)
+    for w in estimate["windows"]:
+        print(f"\n{w['label']}  —  {w['used_percent']:.0f}% used, "
+              f"resets in {w['resets_in']}")
+        if "tokens" not in w:
+            print(f"  {w.get('note', 'cannot estimate')}")
+            continue
+        print(f"  measured spend ${w['measured_spend']:.2f}  →  "
+              f"est. budget ${w['est_budget']:.2f}, ${w['est_remaining']:.2f} left")
+        print(f"  {'model':<28}{'as output tokens':>16}{'as input tokens':>16}")
+        for model_id, toks in w["tokens"].items():
+            print(f"  {model_id:<28}{toks['as_output']:>16,}{toks['as_input']:>16,}")
+    print("\noutput tokens are the scarce side; real usage mixes in cheaper cached")
+    print("input, so practical headroom sits between the two columns.")
 
 
 def parse_reset(value: str | None) -> datetime | None:
@@ -316,6 +516,11 @@ def main(argv: list[str] | None = None) -> int:
         help="exit 1 if any active window is at or above PCT%% used (for alerts)",
     )
     parser.add_argument(
+        "--estimate",
+        action="store_true",
+        help="estimate per-model token headroom in each window (uses local logs)",
+    )
+    parser.add_argument(
         "--api-credits",
         action="store_true",
         help="also report Anthropic API spend (needs an Admin key; see .secrets)",
@@ -356,6 +561,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     report = build_report(data, now)
+
+    estimate = None
+    if args.estimate:
+        try:
+            estimate = build_estimate(data, now, token)
+        except UsageError as exc:
+            print(f"error (--estimate): {exc}", file=sys.stderr)
+            return 2
+        report["estimate"] = estimate
+
     if cost_report is not None:
         report["api_spend"] = cost_report
 
@@ -363,6 +578,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2))
     else:
         print_human(report)
+        if estimate is not None:
+            print_estimate(estimate)
         if cost_report is not None:
             print_cost_report(cost_report, args.days)
 
