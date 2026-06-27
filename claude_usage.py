@@ -9,6 +9,7 @@ No third-party dependencies — standard library only.
 Usage:
     ./claude_usage.py            # human-readable summary
     ./claude_usage.py --json     # machine-readable JSON (for scheduled tasks)
+    ./claude_usage.py --raw      # the complete, unmodified API response
     ./claude_usage.py --threshold 90   # exit 1 if any active window is >= 90% used
 """
 
@@ -198,6 +199,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--json", action="store_true", help="output structured JSON")
     parser.add_argument(
+        "--raw",
+        action="store_true",
+        help="print the complete, unmodified API response",
+    )
+    parser.add_argument(
         "--threshold",
         type=float,
         default=None,
@@ -212,6 +218,10 @@ def main(argv: list[str] | None = None) -> int:
     except UsageError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+
+    if args.raw:
+        print(json.dumps(data, indent=2))
+        return 0
 
     now = datetime.now(timezone.utc)
     report = build_report(data, now)

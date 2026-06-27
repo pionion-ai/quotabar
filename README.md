@@ -19,6 +19,7 @@ scheduled task / cron alert.
 ```bash
 ./claude_usage.py              # human-readable summary
 ./claude_usage.py --json       # structured JSON for scripts/schedulers
+./claude_usage.py --raw        # complete, unmodified API response
 ./claude_usage.py --threshold 90   # exit code 1 if any window is >= 90% used
 ```
 
