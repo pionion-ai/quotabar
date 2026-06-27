@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .DS_Store
 *.log
+
+# Secrets — never commit
+.secrets
+*.secret
