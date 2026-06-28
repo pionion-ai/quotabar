@@ -39,6 +39,19 @@ final class UsageDecoderTests: XCTestCase {
         XCTAssertEqual(windows.map(\.key), ["five_hour"])  // NOT dropped
     }
 
+    /// Golden fixture captured from the real `/oauth/usage` payload (sanitized).
+    /// Loaded from disk via `#filePath` so the parser is exercised against a
+    /// real-shaped body, not invented JSON. Refresh per TESTING.md.
+    func testDecodesRealCapturedFixture() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Fixtures/oauth-usage-real.json")
+        let data = try Data(contentsOf: url)
+        let windows = try UsageDecoder.windows(from: data)
+        XCTAssertEqual(windows.map(\.key), ["five_hour", "seven_day", "seven_day_sonnet"])
+        XCTAssertEqual(windows[0].usedPercent, 4.0, accuracy: 0.001)
+    }
+
     func testDecodesRealisticPayloadWithNullsArraysAndScalars() throws {
         let data = """
         {
