@@ -30,6 +30,10 @@ from pathlib import Path
 USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage"
 MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
 COST_REPORT_ENDPOINT = "https://api.anthropic.com/v1/organizations/cost_report"
+# The /oauth/usage (and /v1/models via OAuth) endpoint gates the generous
+# rate-limit bucket on a `claude-code/<version>` User-Agent. Without it,
+# requests land in an aggressively throttled bucket and get persistent 429s.
+CLAUDE_CODE_USER_AGENT = "claude-code/2.1.195"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
 SECRETS_FILE = Path(__file__).resolve().parent / ".secrets"
@@ -109,6 +113,7 @@ def fetch_usage(token: str) -> dict:
         headers={
             "Authorization": f"Bearer {token}",
             "anthropic-beta": "oauth-2025-04-20",
+            "User-Agent": CLAUDE_CODE_USER_AGENT,
         },
     )
     try:
@@ -136,6 +141,7 @@ def fetch_models(token: str) -> list[dict]:
             "Authorization": f"Bearer {token}",
             "anthropic-version": "2023-06-01",
             "anthropic-beta": "oauth-2025-04-20",
+            "User-Agent": CLAUDE_CODE_USER_AGENT,
         },
     )
     try:

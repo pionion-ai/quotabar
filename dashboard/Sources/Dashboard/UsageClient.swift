@@ -15,6 +15,12 @@ protocol UsageProviding {
 struct UsageClient: UsageProviding {
     static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
+    // The /oauth/usage endpoint gates the generous rate-limit bucket on a
+    // `claude-code/<version>` User-Agent. Without it, requests land in an
+    // aggressively throttled bucket and get persistent 429s (retry-after:0).
+    // Only the `claude-code/` prefix + a version token matters; see TESTING.md.
+    static let userAgent = "claude-code/2.1.195"
+
     let tokenReader: () throws -> String
     let transport: (URLRequest) async throws -> (Data, URLResponse)
 
@@ -31,6 +37,7 @@ struct UsageClient: UsageProviding {
         var req = URLRequest(url: Self.endpoint)
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        req.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
 
         let data: Data, response: URLResponse
         do { (data, response) = try await transport(req) }

@@ -22,6 +22,8 @@ final class UsageClientTests: XCTestCase {
         let client = UsageClient(tokenReader: { "secret-token" }) { req in
             XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
             XCTAssertEqual(req.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
+            XCTAssertEqual(req.value(forHTTPHeaderField: "User-Agent"), UsageClient.userAgent)
+            XCTAssertTrue(UsageClient.userAgent.hasPrefix("claude-code/"))
             return (self.okJSON, self.response(200))
         }
         _ = try await client.fetch()

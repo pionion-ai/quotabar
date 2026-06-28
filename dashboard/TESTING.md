@@ -43,3 +43,11 @@ The `/oauth/usage` endpoint rate-limits (HTTP 429). The app maps 429 to
 `FetchError.rateLimited`, keeps the last-good gauges visible on a transient
 failure (instead of blanking to the error screen), and backs off for 5 minutes
 before fetching again. The gauges show a quiet "stale" hint while backing off.
+
+The endpoint also hard-throttles any client whose `User-Agent` does **not**
+start with `claude-code/<version>`: such requests are routed into an
+aggressively rate-limited bucket and get persistent 429s (retry-after:0).
+Both the app (`UsageClient.userAgent`) and the CLI (`CLAUDE_CODE_USER_AGENT`)
+set this header deliberately so they land in the generous bucket. Only the
+`claude-code/` prefix plus a version token matters — the exact version is
+irrelevant.
