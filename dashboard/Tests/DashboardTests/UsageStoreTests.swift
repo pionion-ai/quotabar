@@ -59,12 +59,43 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(store.menuBarColor, .red)
     }
 
-    func testMenuBarTitleShowsLowestRemainingWhenOk() async {
+    func testMenuBarTitleShowsHighestUsedWhenOk() async {
         let store = UsageStore(provider: FakeProvider(result: .success([
             win("five_hour", "5-hour session", used: 8, resetsIn: 3600),     // 92% left
-            win("seven_day", "7-day (all models)", used: 40, resetsIn: 3600) // 60% left
+            win("seven_day", "7-day (all models)", used: 40, resetsIn: 3600) // 60% left, most constrained
         ])), threshold: nil, now: { self.now })
         await store.refresh()
-        XCTAssertEqual(store.menuBarTitle, "◔ 60%")
+        XCTAssertEqual(store.menuBarTitle, "◔ 40%")
+    }
+
+    private final class CountingProvider: UsageProviding {
+        private(set) var fetchCount = 0
+        let windows: [UsageWindow]
+        init(windows: [UsageWindow]) { self.windows = windows }
+        func fetch() async throws -> [UsageWindow] {
+            fetchCount += 1
+            return windows
+        }
+    }
+
+    func testTickRefreshesWhenWindowResetTimePasses() async {
+        let resetsAt = now.addingTimeInterval(300)   // window resets 5 minutes from base
+        let provider = CountingProvider(windows: [
+            UsageWindow(key: "five_hour", label: "5-hour", usedPercent: 8, resetsAt: resetsAt)
+        ])
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        // A tick before the reset time must not trigger another fetch.
+        store.tick(now: resetsAt.addingTimeInterval(-1))
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        // A tick at/after the reset time fires a one-shot refresh. Assert the
+        // synchronous effect (pendingResetRefresh cleared) deterministically.
+        XCTAssertNotNil(store.pendingResetRefresh)
+        store.tick(now: resetsAt)
+        XCTAssertNil(store.pendingResetRefresh)
     }
 }

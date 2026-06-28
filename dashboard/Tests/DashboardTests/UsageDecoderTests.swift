@@ -14,7 +14,7 @@ final class UsageDecoderTests: XCTestCase {
     func testParsesKnownWindowsInOrder() throws {
         let windows = try UsageDecoder.windows(from: sample)
         XCTAssertEqual(windows.map(\.key), ["five_hour", "seven_day", "seven_day_sonnet"])
-        XCTAssertEqual(windows[0].label, "5-hour session")
+        XCTAssertEqual(windows[0].label, "5-hour")
         XCTAssertEqual(windows[0].usedPercent, 8.0, accuracy: 0.001)
     }
 

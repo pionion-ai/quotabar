@@ -62,17 +62,27 @@ struct GaugesView: View {
 
     private func gauge(_ w: UsageWindow) -> some View {
         VStack(spacing: 4) {
-            Gauge(value: w.remainingPercent, in: 0...100) {
+            Gauge(value: w.usedPercent, in: 0...100) {
                 EmptyView()
             } currentValueLabel: {
-                Text("\(Int(w.remainingPercent.rounded()))%")
+                VStack(spacing: 0) {
+                    Text("\(Int(w.usedPercent.rounded()))%")
+                    Text("used").font(.caption2).foregroundStyle(.secondary)
+                }
             }
             .gaugeStyle(.accessoryCircular)
             .tint(swiftUIColor(w.color()))
-            Text(w.label).font(.caption2).multilineTextAlignment(.center)
-            Text(w.countdown(now: now)).font(.caption2).foregroundStyle(.secondary)
+            Text(w.label)
+                .font(.caption2)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(w.countdown(now: now), systemImage: "clock")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
         }
-        .frame(width: 72)
+        .frame(width: 88)
     }
 
     private func errorView(_ error: FetchError) -> some View {

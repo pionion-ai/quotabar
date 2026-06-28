@@ -22,6 +22,7 @@ final class UsageStore: ObservableObject {
     private var refreshTimer: Timer?
     private var tickTimer: Timer?
     private var isRefreshing = false
+    private(set) var pendingResetRefresh: Date?
 
     init(provider: UsageProviding, threshold: Double?, now: @escaping () -> Date = Date.init) {
         self.provider = provider
@@ -43,9 +44,20 @@ final class UsageStore: ObservableObject {
         }
         RunLoop.main.add(refreshTimer!, forMode: .common)
         tickTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in if let self { self.currentTime = self.now() } }
+            Task { @MainActor in if let self { self.tick(now: self.now()) } }
         }
         RunLoop.main.add(tickTimer!, forMode: .common)
+    }
+
+    /// Advance the displayed clock and, if a loaded window's reset time has just
+    /// passed, trigger a one-shot refresh so the gauge doesn't show a stale
+    /// (pre-reset) percentage while the countdown reads zero.
+    func tick(now: Date) {
+        currentTime = now
+        if let due = pendingResetRefresh, now >= due {
+            pendingResetRefresh = nil          // fire once per crossing
+            Task { await refresh() }
+        }
     }
 
     func stop() {
@@ -60,6 +72,7 @@ final class UsageStore: ObservableObject {
         do {
             let windows = try await provider.fetch()
             loadState = .loaded(windows)
+            pendingResetRefresh = windows.map(\.resetsAt).min()
             lastChecked = now()
             let events = alertEngine.evaluate(windows, now: now())
             if !events.isEmpty { onAlerts(events) }
@@ -96,10 +109,10 @@ final class UsageStore: ObservableObject {
             if let soonest = reached.min(by: { $0.resetsAt < $1.resetsAt }) {
                 return "⛔ \(soonest.countdown(now: currentTime))"
             }
-            guard let lowest = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
+            guard let constrained = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
                 return "◔ —"
             }
-            return "◔ \(Int(lowest.remainingPercent.rounded()))%"
+            return "◔ \(Int(constrained.usedPercent.rounded()))%"
         }
     }
 }
