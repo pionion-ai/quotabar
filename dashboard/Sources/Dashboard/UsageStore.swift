@@ -36,13 +36,16 @@ final class UsageStore: ObservableObject {
     /// Must be called once at app launch; never from unit tests (it schedules
     /// real timers).
     func start() {
+        guard refreshTimer == nil else { return }
         Task { await refresh() }
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        refreshTimer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh() }
         }
-        tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        RunLoop.main.add(refreshTimer!, forMode: .common)
+        tickTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in if let self { self.currentTime = self.now() } }
         }
+        RunLoop.main.add(tickTimer!, forMode: .common)
     }
 
     func stop() {
