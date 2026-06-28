@@ -4,18 +4,33 @@ import SwiftUI
 struct DashboardApp: App {
     private static let defaultThresholdPercent: Double = 85
 
-    @StateObject private var store: UsageStore
+    @StateObject private var coordinator: DashboardCoordinator
     @State private var thresholdEnabled: Bool
     @State private var thresholdValue: Double
     @State private var launchAtLogin: Bool
 
     init() {
         let settings = Settings.load()
-        let store = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
-        store.onAlerts = { Notifier.post($0) }
+
+        let claudeStore = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
+        claudeStore.onAlerts = { Notifier.post($0) }
+        let claude = DashboardCoordinator.ProviderEntry(
+            id: "claude", displayName: "Claude Code", tag: "C", store: claudeStore
+        )
+
+        var codex: DashboardCoordinator.ProviderEntry?
+        if CodexUsageClient.isAvailable() {
+            let codexStore = UsageStore(provider: CodexUsageClient.live(), threshold: settings.threshold)
+            codexStore.onAlerts = { Notifier.post($0) }
+            codex = DashboardCoordinator.ProviderEntry(
+                id: "codex", displayName: "Codex", tag: "X", store: codexStore
+            )
+        }
+
+        let coordinator = DashboardCoordinator(entries: [claude] + (codex.map { [$0] } ?? []))
         Notifier.requestAuthorization()
-        store.start()
-        _store = StateObject(wrappedValue: store)
+        coordinator.startAll()
+        _coordinator = StateObject(wrappedValue: coordinator)
         _thresholdEnabled = State(initialValue: settings.threshold != nil)
         _thresholdValue = State(initialValue: settings.threshold ?? Self.defaultThresholdPercent)
         _launchAtLogin = State(initialValue: LoginItem.isEnabled)
@@ -24,8 +39,7 @@ struct DashboardApp: App {
     var body: some Scene {
         MenuBarExtra {
             GaugesView(
-                store: store,
-                now: store.currentTime,
+                coordinator: coordinator,
                 thresholdEnabled: $thresholdEnabled,
                 thresholdValue: $thresholdValue,
                 launchAtLogin: $launchAtLogin,
@@ -34,8 +48,8 @@ struct DashboardApp: App {
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
         } label: {
-            Text(store.menuBarTitle)
-                .foregroundStyle(menuBarColor(store.menuBarColor))
+            Text(coordinator.menuBarTitle)
+                .foregroundStyle(menuBarColor(coordinator.menuBarColor))
         }
         .menuBarExtraStyle(.window)
     }
@@ -46,7 +60,7 @@ struct DashboardApp: App {
 
     private func applyThreshold() {
         let value: Double? = thresholdEnabled ? thresholdValue : nil
-        store.setThreshold(value)
+        coordinator.setThresholdAll(value)
         Settings(threshold: value).save()
     }
 
