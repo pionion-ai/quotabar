@@ -42,6 +42,17 @@ final class DashboardCoordinatorTests: XCTestCase {
         XCTAssertEqual(result.color, .red)
     }
 
+    func testReachedBeatsTighterNonReached() {
+        // Claude is NON-reached but very high (95% used); Codex is REACHED (100%).
+        // The reached provider must win over the tightest-non-reached one.
+        let result = DashboardCoordinator.aggregate([
+            loaded("C", [win(used: 95, resetsIn: 3600)]),
+            loaded("X", [win(used: 100, resetsIn: 600)]),
+        ])
+        XCTAssertEqual(result.title, "⛔ X 0:10:00")
+        XCTAssertEqual(result.color, .red)
+    }
+
     func testSingleProviderOmitsTag() {
         let result = DashboardCoordinator.aggregate([
             loaded("C", [win(used: 40, resetsIn: 3600)]),

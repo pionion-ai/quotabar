@@ -41,7 +41,7 @@ private struct ProviderSection: View {
         }
         if !healthy.isEmpty {
             HStack(spacing: 16) {
-                ForEach(healthy, id: \.key) { w in gauge(w) }
+                ForEach(healthy, id: \.key) { w in gauge(w, now: now) }
             }
         }
         if reached.isEmpty && healthy.isEmpty {
@@ -65,7 +65,7 @@ private struct ProviderSection: View {
         }
     }
 
-    private func gauge(_ w: UsageWindow) -> some View {
+    private func gauge(_ w: UsageWindow, now: Date) -> some View {
         VStack(spacing: 4) {
             Gauge(value: w.usedPercent, in: 0...100) {
                 EmptyView()
@@ -82,7 +82,7 @@ private struct ProviderSection: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-            Label(w.countdown(now: store.currentTime), systemImage: "clock")
+            Label(w.countdown(now: now), systemImage: "clock")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .labelStyle(.titleAndIcon)
@@ -115,10 +115,11 @@ struct GaugesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(coordinator.entries) { entry in
+            ForEach(Array(coordinator.entries.enumerated()), id: \.element.id) { index, entry in
                 ProviderSection(store: entry.store, title: entry.displayName)
-                Divider()
+                if index < coordinator.entries.count - 1 { Divider() }
             }
+            Divider()
             thresholdControl
             Button("Quit", action: onQuit)
         }

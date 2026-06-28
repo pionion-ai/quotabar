@@ -49,7 +49,7 @@ extension DashboardCoordinator {
         // With a single provider we drop the tag to match the existing
         // single-provider look ("◔ 13%" rather than "◔ C 13%").
         let multi = states.count > 1
-        func prefix(_ tag: String) -> String { multi ? "\(tag) " : "" }
+        func tagPrefix(_ tag: String) -> String { multi ? "\(tag) " : "" }
 
         // Candidate windows: only providers with loaded data contribute.
         struct Candidate { let tag: String; let window: UsageWindow; let now: Date }
@@ -78,13 +78,11 @@ extension DashboardCoordinator {
 
         // Reached first: among reached windows pick the one reopening SOONEST.
         if let soonest = reached.min(by: { $0.window.resetsAt < $1.window.resetsAt }) {
-            return ("⛔ \(prefix(soonest.tag))\(soonest.window.countdown(now: soonest.now))", color)
+            return ("⛔ \(tagPrefix(soonest.tag))\(soonest.window.countdown(now: soonest.now))", color)
         }
 
         // Else tightest: max usedPercent (≡ min remaining) across all candidates.
-        guard let tightest = candidates.max(by: { $0.window.usedPercent < $1.window.usedPercent }) else {
-            return ("◔ —", color)
-        }
-        return ("◔ \(prefix(tightest.tag))\(Int(tightest.window.usedPercent.rounded()))%", color)
+        let tightest = candidates.max(by: { $0.window.usedPercent < $1.window.usedPercent })!  // candidates non-empty (guarded above)
+        return ("◔ \(tagPrefix(tightest.tag))\(Int(tightest.window.usedPercent.rounded()))%", color)
     }
 }

@@ -18,7 +18,9 @@ final class CodexUsageTests: XCTestCase {
         XCTAssertEqual(windows[0].label, "5-hour")
         XCTAssertEqual(windows[0].usedPercent, 1.0, accuracy: 0.001)
         XCTAssertEqual(windows[1].label, "7-day")
+        XCTAssertEqual(windows[1].usedPercent, 0.0, accuracy: 0.001)
         XCTAssertEqual(windows[0].resetsAt, Date(timeIntervalSince1970: 1782677869))
+        XCTAssertEqual(windows[1].resetsAt, Date(timeIntervalSince1970: 1783264669))
     }
 
     func testSkipsWindowMissingUsedPercent() throws {
@@ -30,6 +32,17 @@ final class CodexUsageTests: XCTestCase {
         """.data(using: .utf8)!
         let windows = try CodexUsageDecoder.windows(from: data)
         XCTAssertEqual(windows.map(\.key), ["codex_secondary"])  // primary lacks used_percent
+    }
+
+    func testSkipsWindowMissingResetAt() throws {
+        let data = """
+        {"rate_limit": {
+           "primary_window":   {"used_percent": 1, "limit_window_seconds": 18000},
+           "secondary_window": {"used_percent": 0, "limit_window_seconds": 604800, "reset_at": 1783264669}
+        }}
+        """.data(using: .utf8)!
+        let windows = try CodexUsageDecoder.windows(from: data)
+        XCTAssertEqual(windows.map(\.key), ["codex_secondary"])  // primary lacks reset_at
     }
 
     func testThrowsOnGarbage() {

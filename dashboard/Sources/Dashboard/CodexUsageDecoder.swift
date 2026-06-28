@@ -44,7 +44,7 @@ enum CodexUsageDecoder {
             else { return nil }
             return UsageWindow(key: entry.key,
                                label: label(forWindowSeconds: window.limit_window_seconds),
-                               usedPercent: Double(used),
+                               usedPercent: used,
                                resetsAt: Date(timeIntervalSince1970: resetAt))
         }
     }
