@@ -59,12 +59,148 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(store.menuBarColor, .red)
     }
 
-    func testMenuBarTitleShowsLowestRemainingWhenOk() async {
+    func testMenuBarTitleShowsHighestUsedWhenOk() async {
         let store = UsageStore(provider: FakeProvider(result: .success([
             win("five_hour", "5-hour session", used: 8, resetsIn: 3600),     // 92% left
-            win("seven_day", "7-day (all models)", used: 40, resetsIn: 3600) // 60% left
+            win("seven_day", "7-day (all models)", used: 40, resetsIn: 3600) // 60% left, most constrained
         ])), threshold: nil, now: { self.now })
         await store.refresh()
-        XCTAssertEqual(store.menuBarTitle, "◔ 60%")
+        XCTAssertEqual(store.menuBarTitle, "◔ 40%")
+    }
+
+    private final class CountingProvider: UsageProviding {
+        private(set) var fetchCount = 0
+        let windows: [UsageWindow]
+        init(windows: [UsageWindow]) { self.windows = windows }
+        func fetch() async throws -> [UsageWindow] {
+            fetchCount += 1
+            return windows
+        }
+    }
+
+    /// Counts fetches and lets the test flip between success and a thrown error.
+    private final class FlippableProvider: UsageProviding {
+        private(set) var fetchCount = 0
+        var result: Result<[UsageWindow], FetchError>
+        init(result: Result<[UsageWindow], FetchError>) { self.result = result }
+        func fetch() async throws -> [UsageWindow] {
+            fetchCount += 1
+            return try result.get()
+        }
+    }
+
+    func testKeepsLastGoodDataOnTransientError() async {
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .loaded(good))
+
+        provider.result = .failure(.rateLimited)
+        await store.refresh()
+
+        // Last-good gauges stay visible; only the error hint changes.
+        XCTAssertEqual(store.loadState, .loaded(good))
+        XCTAssertEqual(store.lastError, .rateLimited)
+    }
+
+    func testColdFailureShowsFailedState() async {
+        let provider = FlippableProvider(result: .failure(.rateLimited))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+
+        XCTAssertEqual(store.loadState, .failed(.rateLimited))
+        XCTAssertEqual(store.lastError, .rateLimited)
+    }
+
+    func testRateLimitBacksOff() async {
+        var clock = now
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { clock })
+
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        provider.result = .failure(.rateLimited)
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)   // hit the network, set backoff
+
+        // Same clock: backoff active → fetch is skipped.
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)
+
+        // Advance past the 5-minute backoff window → fetch resumes.
+        clock = now.addingTimeInterval(301)
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 3)
+    }
+
+    func testSuccessClearsErrorAndBackoff() async {
+        var clock = now
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { clock })
+
+        await store.refresh()                    // count 1, success
+        provider.result = .failure(.rateLimited)
+        await store.refresh()                    // count 2, backoff set
+        XCTAssertEqual(store.lastError, .rateLimited)
+
+        // Recover: flip back to success and advance past the backoff.
+        provider.result = .success(good)
+        clock = now.addingTimeInterval(301)
+        await store.refresh()                    // count 3, success clears state
+        XCTAssertNil(store.lastError)
+
+        // Backoff is gone: a same-clock refresh fetches again.
+        await store.refresh()                    // count 4
+        XCTAssertEqual(provider.fetchCount, 4)
+    }
+
+    func testTickRefreshesWhenWindowResetTimePasses() async {
+        let resetsAt = now.addingTimeInterval(300)   // window resets 5 minutes from base
+        let provider = CountingProvider(windows: [
+            UsageWindow(key: "five_hour", label: "5-hour", usedPercent: 8, resetsAt: resetsAt)
+        ])
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        // A tick before the reset time must not trigger another fetch.
+        store.tick(now: resetsAt.addingTimeInterval(-1))
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        // A tick at/after the reset time fires a one-shot refresh. Assert the
+        // synchronous effect (pendingResetRefresh cleared) deterministically.
+        XCTAssertNotNil(store.pendingResetRefresh)
+        store.tick(now: resetsAt)
+        XCTAssertNil(store.pendingResetRefresh)
+    }
+
+    // A reset time already in the past (server lag / clock skew at a window
+    // boundary) must NOT arm pendingResetRefresh, otherwise the 1s tick would
+    // immediately cross it and fire a ~1Hz refresh burst.
+    func testNoReArmWhenResetTimeAlreadyPast() async {
+        // Only a past-reset window: must not arm at all.
+        let pastOnly = UsageStore(
+            provider: FakeProvider(result: .success([win("five_hour", "5-hour", used: 8, resetsIn: -60)])),
+            threshold: nil, now: { self.now })
+        await pastOnly.refresh()
+        XCTAssertNil(pastOnly.pendingResetRefresh)
+
+        // Mix of past and future resets: must arm to the future one.
+        let futureResetsAt = now.addingTimeInterval(300)
+        let mixed = UsageStore(
+            provider: FakeProvider(result: .success([
+                win("five_hour", "5-hour", used: 8, resetsIn: -60),
+                UsageWindow(key: "weekly", label: "Weekly", usedPercent: 8, resetsAt: futureResetsAt)
+            ])),
+            threshold: nil, now: { self.now })
+        await mixed.refresh()
+        XCTAssertEqual(mixed.pendingResetRefresh, futureResetsAt)
     }
 }

@@ -9,7 +9,10 @@ let package = Package(
         .testTarget(
             name: "DashboardTests",
             dependencies: ["Dashboard"],
-            path: "Tests/DashboardTests"
+            path: "Tests/DashboardTests",
+            // Loaded from disk via #filePath at its source location, not bundled
+            // as a resource; exclude it so SPM doesn't flag it as unhandled.
+            exclude: ["Fixtures/oauth-usage-real.json"]
         ),
     ]
 )

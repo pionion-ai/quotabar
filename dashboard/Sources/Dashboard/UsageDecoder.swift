@@ -3,10 +3,10 @@ import Foundation
 enum UsageDecoder {
     // key → label, in display order.
     static let knownWindows: [(key: String, label: String)] = [
-        ("five_hour", "5-hour session"),
-        ("seven_day", "7-day (all models)"),
-        ("seven_day_opus", "7-day (Opus)"),
-        ("seven_day_sonnet", "7-day (Sonnet)"),
+        ("five_hour", "5-hour"),
+        ("seven_day", "7-day"),
+        ("seven_day_opus", "7-day Opus"),
+        ("seven_day_sonnet", "7-day Sonnet"),
     ]
 
     private struct Block: Decodable {

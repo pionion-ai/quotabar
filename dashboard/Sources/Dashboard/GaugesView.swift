@@ -58,21 +58,42 @@ struct GaugesView: View {
             Text("checked \(checked.formatted(date: .omitted, time: .standard))")
                 .font(.caption).foregroundStyle(.secondary)
         }
+        if let err = store.lastError {
+            Label(staleMessage(err), systemImage: "exclamationmark.triangle")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func staleMessage(_ error: FetchError) -> String {
+        switch error {
+        case .rateLimited: return "Rate limited — retrying soon"
+        default:           return "Couldn't refresh — showing last update"
+        }
     }
 
     private func gauge(_ w: UsageWindow) -> some View {
         VStack(spacing: 4) {
-            Gauge(value: w.remainingPercent, in: 0...100) {
+            Gauge(value: w.usedPercent, in: 0...100) {
                 EmptyView()
             } currentValueLabel: {
-                Text("\(Int(w.remainingPercent.rounded()))%")
+                VStack(spacing: 0) {
+                    Text("\(Int(w.usedPercent.rounded()))%")
+                    Text("used").font(.caption2).foregroundStyle(.secondary)
+                }
             }
             .gaugeStyle(.accessoryCircular)
             .tint(swiftUIColor(w.color()))
-            Text(w.label).font(.caption2).multilineTextAlignment(.center)
-            Text(w.countdown(now: now)).font(.caption2).foregroundStyle(.secondary)
+            Text(w.label)
+                .font(.caption2)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(w.countdown(now: now), systemImage: "clock")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .labelStyle(.titleAndIcon)
         }
-        .frame(width: 72)
+        .frame(width: 88)
     }
 
     private func errorView(_ error: FetchError) -> some View {
@@ -80,6 +101,7 @@ struct GaugesView: View {
         switch error {
         case .authExpired: message = "Token expired — run `claude` once to refresh."
         case .notLoggedIn: message = "Not logged in to Claude Code."
+        case .rateLimited: message = "Rate limited — pausing for a few minutes."
         case .network(let m): message = "Network error: \(m)"
         case .decode: message = "Couldn't read the usage response."
         }
