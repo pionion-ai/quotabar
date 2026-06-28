@@ -12,7 +12,7 @@ enum WindowState: Equatable {
     case reached(reopensAt: Date)
 }
 
-enum GaugeColor { case green, amber, red }
+enum GaugeColor: Equatable { case green, amber, red }
 
 extension UsageWindow {
     var remainingPercent: Double { min(100, max(0, 100 - usedPercent)) }

@@ -9,6 +9,10 @@ final class UsageStoreTests: XCTestCase {
         let result: Result<[UsageWindow], FetchError>
         func fetch() async throws -> [UsageWindow] { try result.get() }
     }
+    private struct ThrowingProvider: UsageProviding {
+        struct Boom: Error {}
+        func fetch() async throws -> [UsageWindow] { throw Boom() }
+    }
     private func win(_ key: String, _ label: String, used: Double, resetsIn s: TimeInterval) -> UsageWindow {
         UsageWindow(key: key, label: label, usedPercent: used, resetsAt: now.addingTimeInterval(s))
     }
@@ -25,6 +29,14 @@ final class UsageStoreTests: XCTestCase {
         let store = UsageStore(provider: FakeProvider(result: .failure(.authExpired)), threshold: nil, now: { self.now })
         await store.refresh()
         XCTAssertEqual(store.loadState, .failed(.authExpired))
+    }
+
+    func testRefreshWrapsGenericErrorAsNetwork() async {
+        let store = UsageStore(provider: ThrowingProvider(), threshold: nil, now: { self.now })
+        await store.refresh()
+        guard case .failed(.network) = store.loadState else {
+            return XCTFail("expected .failed(.network), got \(store.loadState)")
+        }
     }
 
     func testAlertsFireThroughHook() async {

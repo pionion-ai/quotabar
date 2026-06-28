@@ -17,6 +17,10 @@ swift run             # run from the terminal (dev)
 open Dashboard.app    # launch the bundled app
 ```
 
+> Note: threshold/limit notifications only fire from the built `Dashboard.app`
+> (run `./build-app.sh` then `open Dashboard.app`). Under bare `swift run` the
+> process has no bundle identifier, so notifications are silently skipped.
+
 After running `./build-app.sh`, confirm the app works with a quick visual
 smoke test (this step is performed by you, the user): run `open Dashboard.app`
 and check that a menu bar item appears showing `◔ N%` (or `…` briefly while

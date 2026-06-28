@@ -40,6 +40,31 @@ final class UsageClientTests: XCTestCase {
         await assert(client, throws: .notLoggedIn)
     }
 
+    func testTransportThrowingIsNetworkError() async {
+        struct Boom: Error {}
+        let client = UsageClient(tokenReader: { "tok" },
+                                 transport: { _ in throw Boom() })
+        do { _ = try await client.fetch(); XCTFail("expected throw") }
+        catch let e as FetchError {
+            guard case .network = e else { return XCTFail("expected .network, got \(e)") }
+        } catch { XCTFail("wrong error \(error)") }
+    }
+
+    func testHTTP500IsNetworkNotAuthExpired() async {
+        let client = UsageClient(tokenReader: { "tok" },
+                                 transport: { _ in (Data(), self.response(500)) })
+        do { _ = try await client.fetch(); XCTFail("expected throw") }
+        catch let e as FetchError {
+            guard case .network = e else { return XCTFail("expected .network, got \(e)") }
+        } catch { XCTFail("wrong error \(error)") }
+    }
+
+    func testUndecodableBodyIsDecodeError() async {
+        let client = UsageClient(tokenReader: { "tok" },
+                                 transport: { _ in (Data("not json".utf8), self.response(200)) })
+        await assert(client, throws: .decode)
+    }
+
     private func assert(_ client: UsageClient, throws expected: FetchError,
                         file: StaticString = #filePath, line: UInt = #line) async {
         do { _ = try await client.fetch(); XCTFail("expected throw", file: file, line: line) }

@@ -60,10 +60,10 @@ struct UsageClient: UsageProviding {
         proc.standardOutput = pipe
         proc.standardError = Pipe()
         try proc.run()
+        let out = pipe.fileHandleForReading.readDataToEndOfFile()
         proc.waitUntilExit()
         guard proc.terminationStatus == 0 else { throw FetchError.notLoggedIn }
 
-        let out = pipe.fileHandleForReading.readDataToEndOfFile()
         struct Creds: Decodable { struct OAuth: Decodable { let accessToken: String }
                                   let claudeAiOauth: OAuth }
         guard let creds = try? JSONDecoder().decode(Creds.self, from: out) else {

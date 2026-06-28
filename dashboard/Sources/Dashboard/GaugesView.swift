@@ -50,6 +50,10 @@ struct GaugesView: View {
                 ForEach(healthy, id: \.key) { w in gauge(w) }
             }
         }
+        if reached.isEmpty && healthy.isEmpty {
+            Text("No usage windows reported.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
         if let checked = store.lastChecked {
             Text("checked \(checked.formatted(date: .omitted, time: .standard))")
                 .font(.caption).foregroundStyle(.secondary)

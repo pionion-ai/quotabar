@@ -2,43 +2,42 @@ import SwiftUI
 
 @main
 struct DashboardApp: App {
+    private static let defaultThresholdPercent: Double = 85
+
     @StateObject private var store: UsageStore
     @State private var thresholdEnabled: Bool
     @State private var thresholdValue: Double
-    @State private var now = Date()
-
-    private let refreshTimer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    private let tickTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     init() {
         let settings = Settings.load()
         let store = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
         store.onAlerts = { Notifier.post($0) }
+        Notifier.requestAuthorization()
+        store.start()
         _store = StateObject(wrappedValue: store)
         _thresholdEnabled = State(initialValue: settings.threshold != nil)
-        _thresholdValue = State(initialValue: settings.threshold ?? 85)
+        _thresholdValue = State(initialValue: settings.threshold ?? Self.defaultThresholdPercent)
     }
 
     var body: some Scene {
         MenuBarExtra {
             GaugesView(
                 store: store,
-                now: now,
+                now: store.currentTime,
                 thresholdEnabled: $thresholdEnabled,
                 thresholdValue: $thresholdValue,
                 onThresholdChange: applyThreshold,
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
-            .onReceive(refreshTimer) { _ in Task { await store.refresh() } }
-            .onReceive(tickTimer) { now = $0 }
-            .task {
-                Notifier.requestAuthorization()
-                await store.refresh()
-            }
         } label: {
             Text(store.menuBarTitle)
+                .foregroundStyle(menuBarColor(store.menuBarColor))
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private func menuBarColor(_ c: GaugeColor) -> Color {
+        switch c { case .green: return .green; case .amber: return .orange; case .red: return .red }
     }
 
     private func applyThreshold() {

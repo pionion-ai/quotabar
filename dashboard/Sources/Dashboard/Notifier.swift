@@ -13,11 +13,13 @@ enum Notifier {
     }
 
     static func requestAuthorization() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     static func post(_ events: [AlertEvent]) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
         let center = UNUserNotificationCenter.current()
         for event in events {
             let (title, body) = body(for: event)

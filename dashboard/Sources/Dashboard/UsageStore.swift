@@ -11,6 +11,7 @@ enum LoadState: Equatable {
 final class UsageStore: ObservableObject {
     @Published private(set) var loadState: LoadState = .loading
     @Published private(set) var lastChecked: Date?
+    @Published private(set) var currentTime: Date
 
     var onAlerts: ([AlertEvent]) -> Void = { _ in }
 
@@ -18,15 +19,41 @@ final class UsageStore: ObservableObject {
     private let now: () -> Date
     private var alertEngine: AlertEngine
 
+    private var refreshTimer: Timer?
+    private var tickTimer: Timer?
+    private var isRefreshing = false
+
     init(provider: UsageProviding, threshold: Double?, now: @escaping () -> Date = Date.init) {
         self.provider = provider
         self.now = now
         self.alertEngine = AlertEngine(threshold: threshold)
+        self.currentTime = now()
     }
 
     func setThreshold(_ value: Double?) { alertEngine.threshold = value }
 
+    /// Begin the periodic refresh + countdown tick on the main run loop.
+    /// Must be called once at app launch; never from unit tests (it schedules
+    /// real timers).
+    func start() {
+        Task { await refresh() }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.refresh() }
+        }
+        tickTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in if let self { self.currentTime = self.now() } }
+        }
+    }
+
+    func stop() {
+        refreshTimer?.invalidate(); refreshTimer = nil
+        tickTimer?.invalidate(); tickTimer = nil
+    }
+
     func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
         do {
             let windows = try await provider.fetch()
             loadState = .loaded(windows)
@@ -51,8 +78,9 @@ final class UsageStore: ObservableObject {
         case .loaded:
             let reached = windows.filter { $0.usedPercent >= 100 }
             if !reached.isEmpty { return .red }
-            return windows.map { $0.color() }.contains(.red) ? .red
-                : windows.map { $0.color() }.contains(.amber) ? .amber : .green
+            let colors = windows.map { $0.color() }
+            return colors.contains(.red) ? .red
+                : colors.contains(.amber) ? .amber : .green
         }
     }
 
@@ -63,7 +91,7 @@ final class UsageStore: ObservableObject {
         case .loaded:
             let reached = windows.filter { $0.usedPercent >= 100 }
             if let soonest = reached.min(by: { $0.resetsAt < $1.resetsAt }) {
-                return "⛔ \(soonest.countdown(now: now()))"
+                return "⛔ \(soonest.countdown(now: currentTime))"
             }
             guard let lowest = windows.min(by: { $0.remainingPercent < $1.remainingPercent }) else {
                 return "◔ —"

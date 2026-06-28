@@ -14,16 +14,26 @@ enum UsageDecoder {
         let resets_at: String?
     }
 
+    private static let isoPlain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime]; return f
+    }()
+    private static let isoFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static func parseDate(_ s: String) -> Date? {
+        isoFractional.date(from: s) ?? isoPlain.date(from: s)
+    }
+
     static func windows(from data: Data) throws -> [UsageWindow] {
         let blocks = try JSONDecoder().decode([String: Block].self, from: data)
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
 
         return knownWindows.compactMap { known in
             guard let block = blocks[known.key],
                   let util = block.utilization,
                   let iso = block.resets_at,
-                  let date = formatter.date(from: iso)
+                  let date = parseDate(iso)
             else { return nil }
             return UsageWindow(key: known.key, label: known.label,
                                usedPercent: util, resetsAt: date)

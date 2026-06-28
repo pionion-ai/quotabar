@@ -30,4 +30,12 @@ final class UsageDecoderTests: XCTestCase {
     func testThrowsOnGarbage() {
         XCTAssertThrowsError(try UsageDecoder.windows(from: Data("not json".utf8)))
     }
+
+    func testParsesFractionalSecondsTimestamp() throws {
+        let data = """
+        {"five_hour": {"utilization": 8.0, "resets_at": "2026-06-28T18:00:00.123Z"}}
+        """.data(using: .utf8)!
+        let windows = try UsageDecoder.windows(from: data)
+        XCTAssertEqual(windows.map(\.key), ["five_hour"])  // NOT dropped
+    }
 }
