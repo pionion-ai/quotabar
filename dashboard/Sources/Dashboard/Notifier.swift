@@ -1,0 +1,32 @@
+import Foundation
+import UserNotifications
+
+enum Notifier {
+    static func body(for event: AlertEvent) -> (title: String, body: String) {
+        let title = "Claude Code Usage"
+        switch event {
+        case .reached(let label, let countdown):
+            return (title, "\(label) limit reached · available in \(countdown)")
+        case .approaching(let label, let countdown):
+            return (title, "\(label) at threshold · resets in \(countdown)")
+        }
+    }
+
+    static func requestAuthorization() {
+        UNUserNotificationCenter.current()
+            .requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    static func post(_ events: [AlertEvent]) {
+        let center = UNUserNotificationCenter.current()
+        for event in events {
+            let (title, body) = body(for: event)
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            let request = UNNotificationRequest(identifier: UUID().uuidString,
+                                                content: content, trigger: nil)
+            center.add(request)
+        }
+    }
+}
