@@ -180,4 +180,27 @@ final class UsageStoreTests: XCTestCase {
         store.tick(now: resetsAt)
         XCTAssertNil(store.pendingResetRefresh)
     }
+
+    // A reset time already in the past (server lag / clock skew at a window
+    // boundary) must NOT arm pendingResetRefresh, otherwise the 1s tick would
+    // immediately cross it and fire a ~1Hz refresh burst.
+    func testNoReArmWhenResetTimeAlreadyPast() async {
+        // Only a past-reset window: must not arm at all.
+        let pastOnly = UsageStore(
+            provider: FakeProvider(result: .success([win("five_hour", "5-hour", used: 8, resetsIn: -60)])),
+            threshold: nil, now: { self.now })
+        await pastOnly.refresh()
+        XCTAssertNil(pastOnly.pendingResetRefresh)
+
+        // Mix of past and future resets: must arm to the future one.
+        let futureResetsAt = now.addingTimeInterval(300)
+        let mixed = UsageStore(
+            provider: FakeProvider(result: .success([
+                win("five_hour", "5-hour", used: 8, resetsIn: -60),
+                UsageWindow(key: "weekly", label: "Weekly", usedPercent: 8, resetsAt: futureResetsAt)
+            ])),
+            threshold: nil, now: { self.now })
+        await mixed.refresh()
+        XCTAssertEqual(mixed.pendingResetRefresh, futureResetsAt)
+    }
 }

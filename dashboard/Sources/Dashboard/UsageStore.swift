@@ -83,7 +83,7 @@ final class UsageStore: ObservableObject {
         do {
             let windows = try await provider.fetch()
             loadState = .loaded(windows)
-            pendingResetRefresh = windows.map(\.resetsAt).min()
+            pendingResetRefresh = windows.map(\.resetsAt).filter { $0 > now() }.min()
             lastChecked = now()
             lastError = nil
             backoffUntil = nil
