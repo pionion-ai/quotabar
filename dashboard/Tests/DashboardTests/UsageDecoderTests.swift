@@ -38,4 +38,24 @@ final class UsageDecoderTests: XCTestCase {
         let windows = try UsageDecoder.windows(from: data)
         XCTAssertEqual(windows.map(\.key), ["five_hour"])  // NOT dropped
     }
+
+    func testDecodesRealisticPayloadWithNullsArraysAndScalars() throws {
+        let data = """
+        {
+          "five_hour":            {"utilization": 40.0, "resets_at": "2026-06-28T20:00:00+00:00", "limit_dollars": 1, "used_dollars": 0.4, "remaining_dollars": 0.6},
+          "seven_day":            {"utilization": 8.0,  "resets_at": "2026-07-01T00:00:00+00:00", "limit_dollars": 1, "used_dollars": 0.08, "remaining_dollars": 0.92},
+          "seven_day_oauth_apps": null,
+          "seven_day_opus":       null,
+          "seven_day_sonnet":     {"utilization": 2.0,  "resets_at": "2026-07-01T00:00:00+00:00"},
+          "seven_day_cowork":     null,
+          "extra_usage":          {"is_enabled": false, "monthly_limit": null, "daily": null, "weekly": null},
+          "limits":               [{"kind": "session", "percent": 40}],
+          "spend":                {"used": 1, "limit": 2, "enabled": true},
+          "member_dashboard_available": false
+        }
+        """.data(using: .utf8)!
+        let windows = try UsageDecoder.windows(from: data)
+        XCTAssertEqual(windows.map(\.key), ["five_hour", "seven_day", "seven_day_sonnet"])
+        XCTAssertEqual(windows[0].usedPercent, 40.0, accuracy: 0.001)
+    }
 }

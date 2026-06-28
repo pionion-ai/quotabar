@@ -26,11 +26,37 @@ enum UsageDecoder {
         isoFractional.date(from: s) ?? isoPlain.date(from: s)
     }
 
+    private struct DynamicKey: CodingKey {
+        let stringValue: String
+        init(stringValue: String) { self.stringValue = stringValue }
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
+    }
+
+    private struct Payload: Decodable {
+        let blocks: [String: Block]
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: DynamicKey.self)
+            var result: [String: Block] = [:]
+            for known in UsageDecoder.knownWindows {
+                let key = DynamicKey(stringValue: known.key)
+                // decodeIfPresent → nil for an absent key OR a JSON null;
+                // try? swallows a type mismatch on a wrong-typed value.
+                if let block = try? container.decodeIfPresent(Block.self, forKey: key) {
+                    result[known.key] = block
+                }
+            }
+            self.blocks = result
+        }
+    }
+
     static func windows(from data: Data) throws -> [UsageWindow] {
-        let blocks = try JSONDecoder().decode([String: Block].self, from: data)
+        // Throws if the top level is not a JSON object (preserves garbage-throws behavior).
+        let payload = try JSONDecoder().decode(Payload.self, from: data)
 
         return knownWindows.compactMap { known in
-            guard let block = blocks[known.key],
+            guard let block = payload.blocks[known.key],
                   let util = block.utilization,
                   let iso = block.resets_at,
                   let date = parseDate(iso)
