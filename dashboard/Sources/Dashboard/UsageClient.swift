@@ -3,6 +3,7 @@ import Foundation
 enum FetchError: Error, Equatable {
     case notLoggedIn
     case authExpired
+    case rateLimited
     case network(String)
     case decode
 }
@@ -37,6 +38,7 @@ struct UsageClient: UsageProviding {
 
         if let http = response as? HTTPURLResponse {
             if http.statusCode == 401 { throw FetchError.authExpired }
+            if http.statusCode == 429 { throw FetchError.rateLimited }
             guard (200..<300).contains(http.statusCode) else {
                 throw FetchError.network("HTTP \(http.statusCode)")
             }

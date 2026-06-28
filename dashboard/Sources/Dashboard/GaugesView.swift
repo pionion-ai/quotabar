@@ -58,6 +58,17 @@ struct GaugesView: View {
             Text("checked \(checked.formatted(date: .omitted, time: .standard))")
                 .font(.caption).foregroundStyle(.secondary)
         }
+        if let err = store.lastError {
+            Label(staleMessage(err), systemImage: "exclamationmark.triangle")
+                .font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+
+    private func staleMessage(_ error: FetchError) -> String {
+        switch error {
+        case .rateLimited: return "Rate limited — retrying soon"
+        default:           return "Couldn't refresh — showing last update"
+        }
     }
 
     private func gauge(_ w: UsageWindow) -> some View {
@@ -90,6 +101,7 @@ struct GaugesView: View {
         switch error {
         case .authExpired: message = "Token expired — run `claude` once to refresh."
         case .notLoggedIn: message = "Not logged in to Claude Code."
+        case .rateLimited: message = "Rate limited — pausing for a few minutes."
         case .network(let m): message = "Network error: \(m)"
         case .decode: message = "Couldn't read the usage response."
         }

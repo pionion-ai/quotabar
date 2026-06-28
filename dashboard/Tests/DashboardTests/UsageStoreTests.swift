@@ -78,6 +78,88 @@ final class UsageStoreTests: XCTestCase {
         }
     }
 
+    /// Counts fetches and lets the test flip between success and a thrown error.
+    private final class FlippableProvider: UsageProviding {
+        private(set) var fetchCount = 0
+        var result: Result<[UsageWindow], FetchError>
+        init(result: Result<[UsageWindow], FetchError>) { self.result = result }
+        func fetch() async throws -> [UsageWindow] {
+            fetchCount += 1
+            return try result.get()
+        }
+    }
+
+    func testKeepsLastGoodDataOnTransientError() async {
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .loaded(good))
+
+        provider.result = .failure(.rateLimited)
+        await store.refresh()
+
+        // Last-good gauges stay visible; only the error hint changes.
+        XCTAssertEqual(store.loadState, .loaded(good))
+        XCTAssertEqual(store.lastError, .rateLimited)
+    }
+
+    func testColdFailureShowsFailedState() async {
+        let provider = FlippableProvider(result: .failure(.rateLimited))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+
+        await store.refresh()
+
+        XCTAssertEqual(store.loadState, .failed(.rateLimited))
+        XCTAssertEqual(store.lastError, .rateLimited)
+    }
+
+    func testRateLimitBacksOff() async {
+        var clock = now
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { clock })
+
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 1)
+
+        provider.result = .failure(.rateLimited)
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)   // hit the network, set backoff
+
+        // Same clock: backoff active → fetch is skipped.
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)
+
+        // Advance past the 5-minute backoff window → fetch resumes.
+        clock = now.addingTimeInterval(301)
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 3)
+    }
+
+    func testSuccessClearsErrorAndBackoff() async {
+        var clock = now
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let provider = FlippableProvider(result: .success(good))
+        let store = UsageStore(provider: provider, threshold: nil, now: { clock })
+
+        await store.refresh()                    // count 1, success
+        provider.result = .failure(.rateLimited)
+        await store.refresh()                    // count 2, backoff set
+        XCTAssertEqual(store.lastError, .rateLimited)
+
+        // Recover: flip back to success and advance past the backoff.
+        provider.result = .success(good)
+        clock = now.addingTimeInterval(301)
+        await store.refresh()                    // count 3, success clears state
+        XCTAssertNil(store.lastError)
+
+        // Backoff is gone: a same-clock refresh fetches again.
+        await store.refresh()                    // count 4
+        XCTAssertEqual(provider.fetchCount, 4)
+    }
+
     func testTickRefreshesWhenWindowResetTimePasses() async {
         let resetsAt = now.addingTimeInterval(300)   // window resets 5 minutes from base
         let provider = CountingProvider(windows: [

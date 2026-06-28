@@ -50,6 +50,12 @@ final class UsageClientTests: XCTestCase {
         } catch { XCTFail("wrong error \(error)") }
     }
 
+    func testMaps429ToRateLimited() async {
+        let client = UsageClient(tokenReader: { "tok" },
+                                 transport: { _ in (Data(), self.response(429)) })
+        await assert(client, throws: .rateLimited)
+    }
+
     func testHTTP500IsNetworkNotAuthExpired() async {
         let client = UsageClient(tokenReader: { "tok" },
                                  transport: { _ in (Data(), self.response(500)) })

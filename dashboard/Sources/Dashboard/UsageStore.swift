@@ -12,6 +12,13 @@ final class UsageStore: ObservableObject {
     @Published private(set) var loadState: LoadState = .loading
     @Published private(set) var lastChecked: Date?
     @Published private(set) var currentTime: Date
+    /// The most recent fetch error, or nil after a success. Drives the quiet
+    /// "stale" hint while last-good gauges remain visible.
+    @Published private(set) var lastError: FetchError?
+
+    /// When set and still in the future, `refresh()` skips the network call to
+    /// avoid hammering a rate-limited endpoint.
+    private var backoffUntil: Date?
 
     var onAlerts: ([AlertEvent]) -> Void = { _ in }
 
@@ -69,18 +76,33 @@ final class UsageStore: ObservableObject {
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+
+        // Skip the network call while a rate-limit backoff is active.
+        if let until = backoffUntil, now() < until { return }
+
         do {
             let windows = try await provider.fetch()
             loadState = .loaded(windows)
             pendingResetRefresh = windows.map(\.resetsAt).min()
             lastChecked = now()
+            lastError = nil
+            backoffUntil = nil
             let events = alertEngine.evaluate(windows, now: now())
             if !events.isEmpty { onAlerts(events) }
-        } catch let error as FetchError {
-            loadState = .failed(error)
         } catch {
-            loadState = .failed(.network(error.localizedDescription))
+            let fetchError = (error as? FetchError) ?? .network(error.localizedDescription)
+            lastError = fetchError
+            // Keep last-good gauges visible on a transient failure; only blank
+            // to the error view when we have no prior loaded data.
+            if !hasLoadedData { loadState = .failed(fetchError) }
+            // Back off on rate limits so we stop hammering the endpoint.
+            if fetchError == .rateLimited { backoffUntil = now().addingTimeInterval(300) }
         }
+    }
+
+    private var hasLoadedData: Bool {
+        if case .loaded = loadState { return true }
+        return false
     }
 
     private var windows: [UsageWindow] {
