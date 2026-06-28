@@ -9,7 +9,9 @@ struct GaugesView: View {
     let now: Date
     @Binding var thresholdEnabled: Bool
     @Binding var thresholdValue: Double
+    @Binding var launchAtLogin: Bool
     var onThresholdChange: () -> Void
+    var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
 
     var body: some View {
@@ -119,6 +121,10 @@ struct GaugesView: View {
                     Slider(value: $thresholdValue, in: 50...99, step: 1)
                         .onChange(of: thresholdValue) { _ in onThresholdChange() }
                 }
+            }
+            if LoginItem.isAvailable {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _ in onLaunchAtLoginChange() }
             }
         }
     }

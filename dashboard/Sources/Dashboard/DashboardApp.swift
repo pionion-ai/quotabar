@@ -7,6 +7,7 @@ struct DashboardApp: App {
     @StateObject private var store: UsageStore
     @State private var thresholdEnabled: Bool
     @State private var thresholdValue: Double
+    @State private var launchAtLogin: Bool
 
     init() {
         let settings = Settings.load()
@@ -17,6 +18,7 @@ struct DashboardApp: App {
         _store = StateObject(wrappedValue: store)
         _thresholdEnabled = State(initialValue: settings.threshold != nil)
         _thresholdValue = State(initialValue: settings.threshold ?? Self.defaultThresholdPercent)
+        _launchAtLogin = State(initialValue: LoginItem.isEnabled)
     }
 
     var body: some Scene {
@@ -26,7 +28,9 @@ struct DashboardApp: App {
                 now: store.currentTime,
                 thresholdEnabled: $thresholdEnabled,
                 thresholdValue: $thresholdValue,
+                launchAtLogin: $launchAtLogin,
                 onThresholdChange: applyThreshold,
+                onLaunchAtLoginChange: applyLaunchAtLogin,
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
         } label: {
@@ -44,5 +48,13 @@ struct DashboardApp: App {
         let value: Double? = thresholdEnabled ? thresholdValue : nil
         store.setThreshold(value)
         Settings(threshold: value).save()
+    }
+
+    private func applyLaunchAtLogin() {
+        do { try LoginItem.setEnabled(launchAtLogin) }
+        catch {
+            // revert the toggle to the real state if the system call failed
+            launchAtLogin = LoginItem.isEnabled
+        }
     }
 }
