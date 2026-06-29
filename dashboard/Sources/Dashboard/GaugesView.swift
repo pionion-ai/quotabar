@@ -4,19 +4,16 @@ private func swiftUIColor(_ c: GaugeColor) -> Color {
     switch c { case .green: return .green; case .amber: return .orange; case .red: return .red }
 }
 
-struct GaugesView: View {
+/// One labeled provider block in the popover: a header with the provider name,
+/// then its loadState-driven content. Each provider ticks its own clock via
+/// `store.currentTime`.
+private struct ProviderSection: View {
     @ObservedObject var store: UsageStore
-    let now: Date
-    @Binding var thresholdEnabled: Bool
-    @Binding var thresholdValue: Double
-    @Binding var launchAtLogin: Bool
-    var onThresholdChange: () -> Void
-    var onLaunchAtLoginChange: () -> Void
-    var onQuit: () -> Void
+    let title: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Claude Code Usage").font(.headline)
+            Text(title).font(.headline)
 
             switch store.loadState {
             case .loading:
@@ -26,16 +23,11 @@ struct GaugesView: View {
             case .loaded(let windows):
                 content(windows)
             }
-
-            Divider()
-            thresholdControl
-            Button("Quit", action: onQuit)
         }
-        .padding(16)
-        .frame(width: 300)
     }
 
     @ViewBuilder private func content(_ windows: [UsageWindow]) -> some View {
+        let now = store.currentTime
         let reached = windows.filter { if case .reached = $0.state { return true }; return false }
         let healthy = windows.filter { if case .ok = $0.state { return true }; return false }
 
@@ -49,7 +41,7 @@ struct GaugesView: View {
         }
         if !healthy.isEmpty {
             HStack(spacing: 16) {
-                ForEach(healthy, id: \.key) { w in gauge(w) }
+                ForEach(healthy, id: \.key) { w in gauge(w, now: now) }
             }
         }
         if reached.isEmpty && healthy.isEmpty {
@@ -73,7 +65,7 @@ struct GaugesView: View {
         }
     }
 
-    private func gauge(_ w: UsageWindow) -> some View {
+    private func gauge(_ w: UsageWindow, now: Date) -> some View {
         VStack(spacing: 4) {
             Gauge(value: w.usedPercent, in: 0...100) {
                 EmptyView()
@@ -109,6 +101,30 @@ struct GaugesView: View {
         }
         return Label(message, systemImage: "wifi.exclamationmark")
             .font(.callout).foregroundStyle(.secondary)
+    }
+}
+
+struct GaugesView: View {
+    @ObservedObject var coordinator: DashboardCoordinator
+    @Binding var thresholdEnabled: Bool
+    @Binding var thresholdValue: Double
+    @Binding var launchAtLogin: Bool
+    var onThresholdChange: () -> Void
+    var onLaunchAtLoginChange: () -> Void
+    var onQuit: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(coordinator.entries.enumerated()), id: \.element.id) { index, entry in
+                ProviderSection(store: entry.store, title: entry.displayName)
+                if index < coordinator.entries.count - 1 { Divider() }
+            }
+            Divider()
+            thresholdControl
+            Button("Quit", action: onQuit)
+        }
+        .padding(16)
+        .frame(width: 320)
     }
 
     private var thresholdControl: some View {
