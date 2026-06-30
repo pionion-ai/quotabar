@@ -27,7 +27,18 @@ struct DashboardApp: App {
             )
         }
 
-        let coordinator = DashboardCoordinator(entries: [claude] + (codex.map { [$0] } ?? []))
+        var gemini: DashboardCoordinator.ProviderEntry?
+        if GeminiUsageClient.isAvailable() {
+            let geminiStore = UsageStore(provider: GeminiUsageClient.live(), threshold: settings.threshold)
+            geminiStore.onAlerts = { Notifier.post($0) }
+            gemini = DashboardCoordinator.ProviderEntry(
+                id: "gemini", displayName: "Gemini", tag: "G", store: geminiStore
+            )
+        }
+
+        let coordinator = DashboardCoordinator(
+            entries: [claude] + (codex.map { [$0] } ?? []) + (gemini.map { [$0] } ?? [])
+        )
         Notifier.requestAuthorization()
         coordinator.startAll()
         _coordinator = StateObject(wrappedValue: coordinator)
