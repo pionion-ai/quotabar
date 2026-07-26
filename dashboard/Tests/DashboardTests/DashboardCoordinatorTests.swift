@@ -116,4 +116,29 @@ final class DashboardCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.menuBarTitle, "◔ X 55%")
         XCTAssertEqual(coordinator.menuBarColor, .green)
     }
+
+    // Counts fetches so we can assert refreshAll() hit every store.
+    private final class CountingProvider: UsageProviding, @unchecked Sendable {
+        let windows: [UsageWindow]
+        private(set) var fetchCount = 0
+        init(windows: [UsageWindow]) { self.windows = windows }
+        func fetch() async throws -> [UsageWindow] { fetchCount += 1; return windows }
+    }
+
+    func testRefreshAllRefreshesEveryStore() async {
+        let claudeProvider = CountingProvider(windows: [win(used: 10, resetsIn: 3600)])
+        let codexProvider = CountingProvider(windows: [win(used: 20, resetsIn: 3600)])
+        let claude = UsageStore(provider: claudeProvider, threshold: nil, now: { self.now })
+        let codex = UsageStore(provider: codexProvider, threshold: nil, now: { self.now })
+        let coordinator = DashboardCoordinator(entries: [
+            .init(id: "claude", displayName: "Claude Code", tag: "C", store: claude),
+            .init(id: "codex", displayName: "Codex", tag: "X", store: codex),
+        ])
+
+        await coordinator.refreshAll()
+
+        XCTAssertEqual(claudeProvider.fetchCount, 1)
+        XCTAssertEqual(codexProvider.fetchCount, 1)
+        XCTAssertEqual(coordinator.menuBarTitle, "◔ X 20%")
+    }
 }

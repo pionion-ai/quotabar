@@ -25,6 +25,14 @@ final class DashboardCoordinator: ObservableObject {
     }
 
     func startAll() { for e in entries { e.store.start() } }
+
+    /// Refresh every provider now — used when the popover opens, so a token
+    /// the user just renewed shows up without waiting for the 60s tick.
+    /// `UsageStore.refresh()` is re-entrancy guarded and honours the rate-limit
+    /// backoff, so repeated opens cannot stampede an endpoint.
+    func refreshAll() async {
+        for e in entries { await e.store.refresh() }
+    }
     func setThresholdAll(_ value: Double?) { for e in entries { e.store.setThreshold(value) } }
 
     var menuBarTitle: String { Self.aggregate(states).title }
