@@ -26,8 +26,25 @@ smoke test (this step is performed by you, the user): run `open Dashboard.app`
 and check that a menu bar item appears showing `◔ N%` (or `…` briefly while
 loading); clicking it opens the popover with circular gauges and reset
 countdowns, and no Dock icon appears. Quit from the popover's Quit button.
-If you are not logged in, the popover correctly shows "Not logged in" /
-"Token expired" — that is the expected error state, not a failure.
+If you are not logged in, the popover correctly shows "Not signed in." /
+"Session expired." with a re-login button — that is the expected error state,
+not a failure.
+
+## Re-login
+
+When a provider's session dies, its section shows a **Re-login to …** button.
+Clicking it opens Terminal running that provider's CLI — `claude`, `codex
+login`, or `gemini`. Finish the login there, then reopen the popover: it
+refreshes on open, so the gauges heal immediately.
+
+The dashboard never refreshes or writes tokens itself. It only reads the
+credential store each CLI owns, so the button is a shortcut for typing the
+command — it cannot verify that the login succeeded. If the session is still
+dead afterwards, the same button reappears.
+
+Gemini is the exception that proves the rule: it mints a short-lived access
+token from a long-lived refresh token on every fetch, so it rarely asks. When
+it does, the refresh token itself has expired.
 
 ## What it shows
 - A circular gauge per usage window (5-hour, 7-day, per-model) showing **% left**,
@@ -46,5 +63,6 @@ countdown ticks locally every second. Only reads — never writes credentials.
 ```bash
 swift test            # pure-logic unit tests (model, decoder, alerts, store)
 ```
-The suite is 27 tests (model, decoder, alerts, store). Network and Keychain
-access sit behind a protocol and are not unit-tested.
+The suite is 83 tests (model, decoder, alerts, store, coordinator, auth
+recovery, launcher). Network and Keychain access sit behind a protocol and are
+not unit-tested.
