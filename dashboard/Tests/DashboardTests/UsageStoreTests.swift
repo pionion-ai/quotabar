@@ -160,6 +160,43 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(provider.fetchCount, 4)
     }
 
+    /// Mimics URLSession: stays in flight until the surrounding Task is
+    /// cancelled, then fails the way a cancelled request does.
+    private struct CancellationAwareProvider: UsageProviding {
+        func fetch() async throws -> [UsageWindow] {
+            while !Task.isCancelled { await Task.yield() }
+            throw FetchError.network("cancelled")
+        }
+    }
+
+    // The popover's .task is cancelled when the popover closes. A refresh cut
+    // short that way is NOT a failure — recording it would leave a bogus
+    // "Couldn't refresh" hint on screen while every endpoint is healthy.
+    func testCancelledRefreshIsNotRecordedAsAnError() async {
+        let store = UsageStore(provider: CancellationAwareProvider(), threshold: nil, now: { self.now })
+
+        let task = Task { await store.refresh() }
+        task.cancel()
+        await task.value
+
+        XCTAssertNil(store.lastError)
+        XCTAssertEqual(store.loadState, .loading)   // not flipped to .failed
+    }
+
+    // A cancelled refresh must also leave previously loaded gauges untouched.
+    func testCancelledRefreshKeepsLastGoodStateClean() async {
+        let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
+        let store = UsageStore(provider: FakeProvider(result: .success(good)), threshold: nil, now: { self.now })
+        await store.refresh()
+        XCTAssertNil(store.lastError)
+
+        let cancelling = UsageStore(provider: CancellationAwareProvider(), threshold: nil, now: { self.now })
+        let task = Task { await cancelling.refresh() }
+        task.cancel()
+        await task.value
+        XCTAssertNil(cancelling.lastError)
+    }
+
     func testTickRefreshesWhenWindowResetTimePasses() async {
         let resetsAt = now.addingTimeInterval(300)   // window resets 5 minutes from base
         let provider = CountingProvider(windows: [

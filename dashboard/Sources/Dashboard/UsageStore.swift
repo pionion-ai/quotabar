@@ -90,6 +90,12 @@ final class UsageStore: ObservableObject {
             let events = alertEngine.evaluate(windows, now: now())
             if !events.isEmpty { onAlerts(events) }
         } catch {
+            // The popover's refresh runs in a SwiftUI .task, which is cancelled
+            // when the popover closes. A fetch cut short that way tells us
+            // nothing about the endpoint — recording it would leave a bogus
+            // "Couldn't refresh" hint on screen until the next successful poll.
+            if Task.isCancelled { return }
+
             let fetchError = (error as? FetchError) ?? .network(error.localizedDescription)
             lastError = fetchError
             // Keep last-good gauges visible on a transient failure; only blank
