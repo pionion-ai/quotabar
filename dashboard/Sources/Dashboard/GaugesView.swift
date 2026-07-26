@@ -10,6 +10,10 @@ private func swiftUIColor(_ c: GaugeColor) -> Color {
 private struct ProviderSection: View {
     @ObservedObject var store: UsageStore
     let title: String
+    let providerID: String
+    /// (command, providerID) — injected so the real Terminal launch stays out
+    /// of previews and any future view test.
+    let launch: (String, String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -53,15 +57,14 @@ private struct ProviderSection: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         if let err = store.lastError {
-            Label(staleMessage(err), systemImage: "exclamationmark.triangle")
-                .font(.caption2).foregroundStyle(.secondary)
-        }
-    }
-
-    private func staleMessage(_ error: FetchError) -> String {
-        switch error {
-        case .rateLimited: return "Rate limited — retrying soon"
-        default:           return "Couldn't refresh — showing last update"
+            VStack(alignment: .leading, spacing: 4) {
+                Label(AuthRecovery.staleMessage(for: err, provider: providerID),
+                      systemImage: "exclamationmark.triangle")
+                    .font(.caption2).foregroundStyle(.secondary)
+                if let prompt = AuthRecovery.prompt(for: err, provider: providerID) {
+                    reloginButton(prompt)
+                }
+            }
         }
     }
 
@@ -90,17 +93,34 @@ private struct ProviderSection: View {
         .frame(width: 88)
     }
 
-    private func errorView(_ error: FetchError) -> some View {
-        let message: String
-        switch error {
-        case .authExpired: message = "Token expired — run `claude` once to refresh."
-        case .notLoggedIn: message = "Not logged in to Claude Code."
-        case .rateLimited: message = "Rate limited — pausing for a few minutes."
-        case .network(let m): message = "Network error: \(m)"
-        case .decode: message = "Couldn't read the usage response."
+    @ViewBuilder private func errorView(_ error: FetchError) -> some View {
+        // Auth failures are the only ones the user can act on, and the action
+        // differs per provider — AuthRecovery owns both decisions.
+        if let prompt = AuthRecovery.prompt(for: error, provider: providerID) {
+            VStack(alignment: .leading, spacing: 6) {
+                Label(prompt.message, systemImage: "person.crop.circle.badge.exclamationmark")
+                    .font(.callout).foregroundStyle(.secondary)
+                reloginButton(prompt)
+            }
+        } else {
+            Label(unactionableMessage(error), systemImage: "wifi.exclamationmark")
+                .font(.callout).foregroundStyle(.secondary)
         }
-        return Label(message, systemImage: "wifi.exclamationmark")
-            .font(.callout).foregroundStyle(.secondary)
+    }
+
+    private func unactionableMessage(_ error: FetchError) -> String {
+        switch error {
+        case .rateLimited: return "Rate limited — pausing for a few minutes."
+        case .network(let m): return "Network error: \(m)"
+        case .decode: return "Couldn't read the usage response."
+        // Auth errors are handled above; an unknown provider id lands here.
+        case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."
+        }
+    }
+
+    private func reloginButton(_ prompt: ReloginPrompt) -> some View {
+        Button(prompt.buttonTitle) { launch(prompt.command, providerID) }
+            .font(.caption)
     }
 }
 
@@ -112,11 +132,17 @@ struct GaugesView: View {
     var onThresholdChange: () -> Void
     var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
+    var launch: (String, String) -> Void = { command, providerID in
+        TerminalLauncher.live.launch(command: command, providerID: providerID)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(coordinator.entries.enumerated()), id: \.element.id) { index, entry in
-                ProviderSection(store: entry.store, title: entry.displayName)
+                ProviderSection(store: entry.store,
+                                title: entry.displayName,
+                                providerID: entry.id,
+                                launch: launch)
                 if index < coordinator.entries.count - 1 { Divider() }
             }
             Divider()
