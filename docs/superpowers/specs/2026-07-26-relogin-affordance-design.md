@@ -60,7 +60,7 @@ enum AuthRecovery {
     /// Non-nil only for auth failures the user can fix by re-running a CLI.
     static func prompt(for error: FetchError, provider: String) -> ReloginPrompt?
     /// The quiet hint shown under still-visible gauges after a failed refresh.
-    static func staleMessage(for error: FetchError) -> String
+    static func staleMessage(for error: FetchError, provider: String) -> String
 }
 ```
 
