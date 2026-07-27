@@ -63,6 +63,6 @@ countdown ticks locally every second. Only reads — never writes credentials.
 ```bash
 swift test            # pure-logic unit tests (model, decoder, alerts, store)
 ```
-The suite is 83 tests (model, decoder, alerts, store, coordinator, auth
-recovery, launcher). Network and Keychain access sit behind a protocol and are
-not unit-tested.
+The suite covers the model, decoders, alerts, store, coordinator, auth
+recovery, and launcher. Network and Keychain access sit behind a protocol and
+are not unit-tested.

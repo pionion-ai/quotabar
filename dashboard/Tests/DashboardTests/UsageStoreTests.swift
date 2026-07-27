@@ -183,18 +183,33 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertEqual(store.loadState, .loading)   // not flipped to .failed
     }
 
+    /// Succeeds on the first fetch, then hangs until cancelled — the shape of
+    /// "gauges loaded, popover closed mid-refresh".
+    private final class SucceedThenHangProvider: UsageProviding {
+        let windows: [UsageWindow]
+        private var first = true
+        init(windows: [UsageWindow]) { self.windows = windows }
+        func fetch() async throws -> [UsageWindow] {
+            if first { first = false; return windows }
+            while !Task.isCancelled { await Task.yield() }
+            throw FetchError.network("cancelled")
+        }
+    }
+
     // A cancelled refresh must also leave previously loaded gauges untouched.
     func testCancelledRefreshKeepsLastGoodStateClean() async {
         let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
-        let store = UsageStore(provider: FakeProvider(result: .success(good)), threshold: nil, now: { self.now })
+        let store = UsageStore(provider: SucceedThenHangProvider(windows: good),
+                               threshold: nil, now: { self.now })
         await store.refresh()
-        XCTAssertNil(store.lastError)
+        XCTAssertEqual(store.loadState, .loaded(good))
 
-        let cancelling = UsageStore(provider: CancellationAwareProvider(), threshold: nil, now: { self.now })
-        let task = Task { await cancelling.refresh() }
+        let task = Task { await store.refresh() }
         task.cancel()
         await task.value
-        XCTAssertNil(cancelling.lastError)
+
+        XCTAssertEqual(store.loadState, .loaded(good))
+        XCTAssertNil(store.lastError)
     }
 
     func testTickRefreshesWhenWindowResetTimePasses() async {
