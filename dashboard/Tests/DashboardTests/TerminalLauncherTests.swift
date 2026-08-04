@@ -61,6 +61,6 @@ final class TerminalLauncherTests: XCTestCase {
 
     func testLiveLauncherPointsAtTheAppCacheDirectory() {
         XCTAssertTrue(TerminalLauncher.live.baseDirectory.path
-            .hasSuffix("Caches/com.claudeusage.dashboard"))
+            .hasSuffix("Caches/ai.pionion.quotabar"))
     }
 }

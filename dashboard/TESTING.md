@@ -32,7 +32,7 @@ invented JSON.
 - Before shipping a build, run the reality gate against the **live** endpoint:
 
   ```
-  ./build-app.sh && open Dashboard.app
+  ./build-app.sh && open QuotaBar.app
   ```
 
   Confirm the popover shows real gauges (not an error view).

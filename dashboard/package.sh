@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Build a distributable, Developer ID-signed Claude Usage Dashboard.dmg.
+# Build a distributable, Developer ID-signed QuotaBar.dmg.
 #
-# Produces dist/Dashboard.app (hardened-runtime, Developer ID signed) and
-# dist/ClaudeUsageDashboard.dmg (signed). Optionally notarizes + staples the
+# Produces dist/QuotaBar.app (hardened-runtime, Developer ID signed) and
+# dist/QuotaBar.dmg (signed). Optionally notarizes + staples the
 # dmg when notarization credentials are supplied.
 #
 # Required env:
@@ -23,9 +23,9 @@ if [[ -z "${SIGN_IDENTITY:-}" ]]; then
   exit 1
 fi
 IDENTITY="$SIGN_IDENTITY"
-APP="dist/Dashboard.app"
-DMG="dist/ClaudeUsageDashboard.dmg"
-VOLNAME="Claude Usage Dashboard"
+APP="dist/QuotaBar.app"
+DMG="dist/QuotaBar.dmg"
+VOLNAME="QuotaBar"
 
 echo "==> Building release binary"
 swift build -c release

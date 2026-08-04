@@ -1,8 +1,9 @@
-# claude-usage-dashboard
+# QuotaBar
 
-A native macOS menu bar app showing live Claude Code subscription usage as
-circular gauges, with a countdown to reopening when a limit is reached. A
-self-contained companion to the `claude-usage` CLI tool (no Python needed).
+A native macOS menu bar app showing live AI-subscription usage (Claude Code,
+plus Codex and Gemini when present) as circular gauges, with a countdown to
+reopening when a limit is reached. A self-contained companion to the repo's
+CLI scripts (no Python needed).
 
 > **Unofficial tool.** Not affiliated with Anthropic, OpenAI, or Google; it
 > reads the usage data through the same private endpoints the official CLIs
@@ -16,8 +17,8 @@ self-contained companion to the `claude-usage` CLI tool (no Python needed).
 
 ## Install (prebuilt)
 
-Download `ClaudeUsageDashboard.dmg` from the GitHub Releases page, open it,
-and drag `Dashboard.app` to Applications. Release dmgs are Developer ID
+Download `QuotaBar.dmg` from the GitHub Releases page, open it,
+and drag `QuotaBar.app` to Applications. Release dmgs are Developer ID
 signed **and notarized**, so Gatekeeper opens them without warnings.
 
 The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
@@ -38,16 +39,16 @@ Requires a Swift toolchain (Xcode or Command Line Tools).
 ```bash
 swift build           # compile
 swift run             # run from the terminal (dev)
-./build-app.sh        # produce Dashboard.app (menu-bar-only, ad-hoc signed)
-open Dashboard.app    # launch the bundled app
+./build-app.sh        # produce QuotaBar.app (menu-bar-only, ad-hoc signed)
+open QuotaBar.app     # launch the bundled app
 ```
 
-> Note: threshold/limit notifications only fire from the built `Dashboard.app`
-> (run `./build-app.sh` then `open Dashboard.app`). Under bare `swift run` the
+> Note: threshold/limit notifications only fire from the built `QuotaBar.app`
+> (run `./build-app.sh` then `open QuotaBar.app`). Under bare `swift run` the
 > process has no bundle identifier, so notifications are silently skipped.
 
 After running `./build-app.sh`, confirm the app works with a quick visual
-smoke test (this step is performed by you, the user): run `open Dashboard.app`
+smoke test (this step is performed by you, the user): run `open QuotaBar.app`
 and check that a menu bar item appears showing `◔ N%` (or `…` briefly while
 loading); clicking it opens the popover with circular gauges and reset
 countdowns, and no Dock icon appears. Quit from the popover's Quit button.

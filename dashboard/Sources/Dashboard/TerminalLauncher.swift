@@ -40,7 +40,7 @@ struct TerminalLauncher {
     static let live = TerminalLauncher(
         baseDirectory: FileManager.default
             .urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.claudeusage.dashboard"),
+            .appendingPathComponent("ai.pionion.quotabar"),
         open: { NSWorkspace.shared.open($0) }
     )
 }

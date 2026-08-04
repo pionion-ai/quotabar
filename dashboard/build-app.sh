@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build Dashboard.app — a menu-bar-only macOS app bundle.
+# Build QuotaBar.app — a menu-bar-only macOS app bundle.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="Dashboard.app"
+APP="QuotaBar.app"
 CONTENTS="$APP/Contents"
 
 swift build -c release

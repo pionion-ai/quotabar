@@ -1,18 +1,19 @@
-# claude-usage
+# QuotaBar
 
-A tiny, dependency-free tool that reports how much of your **Claude Code
-subscription** rate limits you've used and when each window resets.
+See how much of your **AI coding subscriptions** you've used — and when each
+rate-limit window resets — for Claude Code, OpenAI Codex, and Gemini CLI.
 
-It reads your local Claude Code OAuth token and queries Anthropic's usage
-endpoint (the same data behind the `/usage` command), then prints it as a
-human-readable summary or structured JSON — ideal for a quick check or a
-scheduled task / cron alert.
+The repo contains:
 
-The repo also contains:
-
-- **[`dashboard/`](dashboard/)** — a native macOS menu bar app showing the
-  same data as live circular gauges, with optional Codex (ChatGPT plan) and
-  Gemini sections. See its own README for install and build instructions.
+- **[`dashboard/`](dashboard/) — QuotaBar.app**, a native macOS menu bar app
+  showing live circular gauges per usage window, with Codex (ChatGPT plan)
+  and Gemini sections appearing automatically when those CLIs are logged in.
+  See its README for install and build instructions.
+- **`claude_usage.py`** — a tiny, dependency-free CLI that reports Claude
+  Code usage as a human-readable summary or JSON (documented below) — ideal
+  for a quick check or a scheduled task / cron alert. It reads your local
+  Claude Code OAuth token and queries Anthropic's usage endpoint (the same
+  data behind the `/usage` command).
 - **`codex_usage.py`** — the same CLI idea for OpenAI Codex: reads
   `~/.codex/auth.json` and reports the 5-hour and weekly windows.
 
@@ -143,7 +144,7 @@ on it:
 
 ```cron
 # Every 30 minutes, log a warning line if any window is >= 85% used
-*/30 * * * * /path/to/claude-usage/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
+*/30 * * * * /path/to/quotabar/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
 ```
 
 macOS `launchd` and any CI scheduler work the same way — call the script,

@@ -3,7 +3,7 @@ name: claude-usage
 description: >-
   Check how much of the Claude Code subscription is left, when limits reset,
   estimated per-model token headroom, and Anthropic API spend — via the local
-  claude-usage tool (claude-usage/claude_usage.py). Use this skill whenever the
+  claude-usage tool (claude_usage.py). Use this skill whenever the
   user asks "how much usage / quota / credits do I have left", "am I close to my
   limit", "when does my limit reset", "how many tokens can I still use", "what's
   my Claude Code usage", "how much have I spent on the API", or wants this
@@ -32,13 +32,13 @@ common "how much is left / when does it reset" question.
 
 | User wants… | Command |
 |---|---|
-| Current usage % + reset times | `./claude-usage/claude_usage.py` |
-| Machine-readable output (for scripts/cron) | `./claude-usage/claude_usage.py --json` |
-| The complete raw API payload | `./claude-usage/claude_usage.py --raw` |
-| Per-model token headroom estimate | `./claude-usage/claude_usage.py --estimate` |
-| Anthropic API spend (needs Admin key) | `./claude-usage/claude_usage.py --api-credits` |
-| Everything together | `./claude-usage/claude_usage.py --estimate --api-credits` |
-| Alert when a window crosses a threshold | `./claude-usage/claude_usage.py --threshold 85` |
+| Current usage % + reset times | `./claude_usage.py` |
+| Machine-readable output (for scripts/cron) | `./claude_usage.py --json` |
+| The complete raw API payload | `./claude_usage.py --raw` |
+| Per-model token headroom estimate | `./claude_usage.py --estimate` |
+| Anthropic API spend (needs Admin key) | `./claude_usage.py --api-credits` |
+| Everything together | `./claude_usage.py --estimate --api-credits` |
+| Alert when a window crosses a threshold | `./claude_usage.py --threshold 85` |
 
 `--days N` sets the API-spend window for `--api-credits` (default 30).
 `--threshold N` makes the tool exit `1` when any window is ≥ N% used — use it
@@ -71,7 +71,7 @@ present these as order-of-magnitude, and note output tokens are the scarce side
 (cached input is far cheaper, so real headroom is higher).
 
 The model list is read **live** from `/v1/models`; prices come from
-`claude-usage/pricing.json` (edit that file when prices change — don't hardcode
+`pricing.json` (edit that file when prices change — don't hardcode
 model names in code). The output's `models_source` says `live_api` or
 `pricing_config` (the fallback when the API is unreachable).
 
@@ -81,7 +81,7 @@ model names in code). The output's `models_source` says `live_api` or
   or `~/.claude/.credentials.json`) — no setup. A 401 means the token expired;
   tell the user to run `claude` once to refresh.
 - **`--api-credits`** needs an Anthropic **Admin key** (`sk-ant-admin…`), read
-  from `ANTHROPIC_ADMIN_KEY` or the gitignored `claude-usage/.secrets` file.
+  from `ANTHROPIC_ADMIN_KEY` or the gitignored `.secrets` file.
   Never print the key, never commit it, and never paste it into chat output.
 
 ## Scheduling
@@ -90,7 +90,7 @@ For a recurring check, wire the `--threshold` form into cron or launchd and act
 on the exit code / `--json` output. Example cron line:
 
 ```cron
-*/30 * * * * /path/to/claude-usage/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
+*/30 * * * * /path/to/quotabar/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
 ```
 
-See `claude-usage/README.md` for full details.
+See `README.md` for full details.
