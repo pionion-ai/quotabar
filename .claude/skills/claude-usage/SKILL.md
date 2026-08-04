@@ -21,8 +21,7 @@ and change constantly.
 
 ## Where it lives
 
-`claude-usage/claude_usage.py`, relative to this repo root
-(`/Users/alookin/Projects/ai-tools`). It's executable and needs only Python 3.9+
+`claude_usage.py` at the repo root. It's executable and needs only Python 3.9+
 (standard library). Run it with an absolute path if the working directory is
 elsewhere.
 
@@ -91,7 +90,7 @@ For a recurring check, wire the `--threshold` form into cron or launchd and act
 on the exit code / `--json` output. Example cron line:
 
 ```cron
-*/30 * * * * /Users/alookin/Projects/ai-tools/claude-usage/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
+*/30 * * * * /path/to/claude-usage/claude_usage.py --threshold 85 >> ~/claude-usage.log 2>&1
 ```
 
 See `claude-usage/README.md` for full details.

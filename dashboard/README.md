@@ -4,12 +4,37 @@ A native macOS menu bar app showing live Claude Code subscription usage as
 circular gauges, with a countdown to reopening when a limit is reached. A
 self-contained companion to the `claude-usage` CLI tool (no Python needed).
 
+> **Unofficial tool.** Not affiliated with Anthropic, OpenAI, or Google; it
+> reads the usage data through the same private endpoints the official CLIs
+> use, and those can change without notice. See the
+> [disclaimer in the root README](../README.md#disclaimer--unofficial-tool-private-endpoints).
+
 ## Requirements
 - macOS 13 (Ventura) or later
-- A logged-in Claude Code session (the token is read from the Keychain)
-- Swift toolchain (Xcode or Command Line Tools) to build
+- A logged-in Claude Code session (the token is read from the Keychain).
+  Codex and Gemini sections appear automatically if those CLIs are logged in.
 
-## Build & run
+## Install (prebuilt)
+
+Download `ClaudeUsageDashboard.dmg` from the GitHub Releases page, open it,
+and drag `Dashboard.app` to Applications. Release dmgs are Developer ID
+signed **and notarized**, so Gatekeeper opens them without warnings.
+
+The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
+
+## Security: what the app does with your tokens
+
+- It **reads** each provider's credentials from the store its own CLI uses
+  (Claude: Keychain, Codex: `~/.codex/auth.json`, Gemini: its OAuth cache).
+  It never writes, refreshes, or deletes credentials.
+- Each token is sent **only to its own provider's usage endpoint** — no
+  telemetry, no third-party servers, no analytics.
+- The full source is in `Sources/Dashboard/` — a handful of small Swift
+  files you can audit, and `swift build` reproduces the app.
+
+## Build & run (from source)
+
+Requires a Swift toolchain (Xcode or Command Line Tools).
 ```bash
 swift build           # compile
 swift run             # run from the terminal (dev)

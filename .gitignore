@@ -6,3 +6,6 @@ __pycache__/
 # Secrets — never commit
 .secrets
 *.secret
+
+# Personal session logs (track-tokens hook output)
+.claude/token_usage.jsonl

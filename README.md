@@ -8,6 +8,42 @@ endpoint (the same data behind the `/usage` command), then prints it as a
 human-readable summary or structured JSON — ideal for a quick check or a
 scheduled task / cron alert.
 
+The repo also contains:
+
+- **[`dashboard/`](dashboard/)** — a native macOS menu bar app showing the
+  same data as live circular gauges, with optional Codex (ChatGPT plan) and
+  Gemini sections. See its own README for install and build instructions.
+- **`codex_usage.py`** — the same CLI idea for OpenAI Codex: reads
+  `~/.codex/auth.json` and reports the 5-hour and weekly windows.
+
+## Disclaimer — unofficial tool, private endpoints
+
+This project is **not affiliated with or endorsed by Anthropic, OpenAI, or
+Google**. It queries the same private, undocumented endpoints the official
+CLIs use (`/api/oauth/usage`, ChatGPT's `/wham/usage`, Gemini's quota RPC),
+authenticated with the tokens those CLIs already store on your machine. To be
+served from the correct rate-limit bucket, requests identify themselves with
+the same `User-Agent` the official CLIs send.
+
+Consequences to be aware of:
+
+- Any of these endpoints can change shape, move, or disappear **without
+  notice**, breaking the tool until it's updated.
+- Reported percentages and reset times come straight from the providers;
+  this tool adds no interpretation beyond formatting.
+- Use at your own risk and within each provider's terms of service.
+
+## Security: what this tool does with your tokens
+
+- It **reads** credentials from where the official CLIs store them (macOS
+  Keychain / `~/.claude/.credentials.json` / `~/.codex/auth.json`). It never
+  writes, refreshes, or deletes them.
+- Each token is sent **only to its own provider's API** (Anthropic token →
+  `api.anthropic.com`, and so on). No telemetry, no third-party servers, no
+  analytics.
+- Everything is plain, dependency-free source in this repo — a few small
+  Python files and Swift files you can audit yourself.
+
 ## Requirements
 
 - Python 3.9+ (standard library only — no `pip install` needed)
@@ -140,3 +176,7 @@ API. The tool only reads — it never writes credentials or makes changes.
   windows) but may need an update.
 - Token refresh is not handled — if you get a 401, run `claude` once
   interactively to refresh, then retry.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
