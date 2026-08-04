@@ -43,6 +43,20 @@ enum AuthRecovery {
                              command: cli.command)
     }
 
+    /// First-run guidance: the re-login button just runs the CLI, which fails
+    /// with "command not found" for someone who installed the dashboard before
+    /// any CLI. Shown only for .notLoggedIn — an *expired* session proves the
+    /// CLI exists.
+    static func installHint(for error: FetchError, provider: String) -> String? {
+        guard case .notLoggedIn = error else { return nil }
+        switch provider {
+        case "claude": return "No CLI yet? npm install -g @anthropic-ai/claude-code"
+        case "codex":  return "No CLI yet? npm install -g @openai/codex"
+        case "gemini": return "No CLI yet? npm install -g @google/gemini-cli"
+        default:       return nil
+        }
+    }
+
     /// The quiet hint under still-visible gauges after a failed refresh. Auth
     /// failures say so; everything else keeps the pre-existing wording.
     static func staleMessage(for error: FetchError, provider: String) -> String {

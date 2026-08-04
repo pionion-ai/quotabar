@@ -101,6 +101,11 @@ private struct ProviderSection: View {
                 Label(prompt.message, systemImage: "person.crop.circle.badge.exclamationmark")
                     .font(.callout).foregroundStyle(.secondary)
                 reloginButton(prompt)
+                if let hint = AuthRecovery.installHint(for: error, provider: providerID) {
+                    Text(hint)
+                        .font(.caption2).foregroundStyle(.tertiary)
+                        .textSelection(.enabled)
+                }
             }
         } else {
             Label(unactionableMessage(error), systemImage: "wifi.exclamationmark")

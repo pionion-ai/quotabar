@@ -28,6 +28,26 @@ final class AuthRecoveryTests: XCTestCase {
         XCTAssertNil(AuthRecovery.prompt(for: .authExpired, provider: ""))
     }
 
+    // MARK: - Install hint (first run, CLI possibly absent)
+
+    func testNotLoggedInGetsAnInstallHint() {
+        for provider in ["claude", "codex", "gemini"] {
+            let hint = AuthRecovery.installHint(for: .notLoggedIn, provider: provider)
+            XCTAssertNotNil(hint, "\(provider) should hint at installing its CLI")
+            XCTAssertTrue(hint!.contains("npm install"), "\(provider) hint should carry the command")
+        }
+    }
+
+    func testOnlyNotLoggedInGetsAnInstallHint() {
+        // An expired session proves the CLI exists — no hint.
+        for error in [FetchError.authExpired, .rateLimited, .network("offline"), .decode] {
+            XCTAssertNil(AuthRecovery.installHint(for: error, provider: "claude"),
+                         "\(error) should not suggest installing")
+        }
+        XCTAssertNil(AuthRecovery.installHint(for: .notLoggedIn, provider: "openai"),
+                     "unknown provider fails closed")
+    }
+
     // MARK: - Commands
 
     func testCommandPerProvider() {

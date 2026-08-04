@@ -23,6 +23,26 @@ signed **and notarized**, so Gatekeeper opens them without warnings.
 
 The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
 
+## First run — what to expect
+
+1. **A Keychain dialog** ("security wants to access …Claude Code-credentials")
+   appears the first time the app reads the Claude Code token. This is
+   QuotaBar reading — never writing — the token the Claude CLI stored; see
+   the security section below. Click **Always Allow**, or you'll be asked
+   again on every 60-second refresh.
+2. **Gauges appear** for every provider whose CLI is logged in. Codex and
+   Gemini sections show up automatically when `~/.codex/auth.json` /
+   `~/.gemini/oauth_creds.json` exist — nothing to configure.
+3. **"Not signed in."** with a re-login button is the normal state for a
+   provider whose CLI has no session yet. The button opens Terminal running
+   that CLI (`claude`, `codex login`, `gemini`); if you've never installed
+   the CLI, the popover shows the `npm install -g …` command to run first.
+4. **Notifications** are optional and off by default — enabling the
+   threshold alert triggers the standard permission prompt.
+
+QuotaBar needs at least one logged-in CLI to show anything useful. There is
+no account, no sign-up, and no configuration of its own.
+
 ## Security: what the app does with your tokens
 
 - It **reads** each provider's credentials from the store its own CLI uses
