@@ -5,8 +5,8 @@
     <key>CFBundleName</key><string>QuotaBar</string>
     <key>CFBundleExecutable</key><string>Dashboard</string>
     <key>CFBundleIdentifier</key><string>ai.pionion.quotabar</string>
-    <key>CFBundleVersion</key><string>2</string>
-    <key>CFBundleShortVersionString</key><string>0.1.1</string>
+    <key>CFBundleVersion</key><string>3</string>
+    <key>CFBundleShortVersionString</key><string>0.1.2</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>NSHumanReadableCopyright</key><string>© 2026 Andrei Lukin / Pionion — MIT License</string>
