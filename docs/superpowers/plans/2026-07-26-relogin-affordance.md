@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Working directory for all commands: `/Users/alookin/Projects/ai-tools/claude-usage/dashboard`.
+- Working directory for all commands: the repo's `dashboard/` directory.
 - Build/test command: `swift test` (there is no other runner). Build the app with `./build-app.sh`.
 - Spec: `docs/superpowers/specs/2026-07-26-relogin-affordance-design.md`. It is authoritative; this plan implements it exactly.
 - Provider ids are the existing `DashboardCoordinator.ProviderEntry.id` values, exactly: `"claude"`, `"codex"`, `"gemini"`. No new field is added to `ProviderEntry`.
