@@ -147,10 +147,29 @@ struct GaugesView: View {
             }
             Divider()
             thresholdControl
-            Button("Quit", action: onQuit)
+            aboutFooter
         }
         .padding(16)
         .frame(width: 320)
+    }
+
+    /// App identity + escape hatches. The popover is the app's only surface
+    /// (menu-bar-only), so this is the one place a user can find the version,
+    /// the project page, and Quit.
+    private var aboutFooter: some View {
+        HStack(spacing: 8) {
+            Text("QuotaBar \(Self.appVersion)")
+                .font(.caption2).foregroundStyle(.secondary)
+            Link("GitHub", destination: URL(string: "https://github.com/pionion-ai/quotabar")!)
+                .font(.caption2)
+            Spacer()
+            Button("Quit", action: onQuit)
+        }
+    }
+
+    /// Bundle version; "dev" under bare `swift run` (no bundle).
+    static var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     }
 
     private var thresholdControl: some View {

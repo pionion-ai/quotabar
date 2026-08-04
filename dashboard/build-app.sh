@@ -13,6 +13,7 @@ rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 cp "$BIN" "$CONTENTS/MacOS/Dashboard"
 cp Resources/Info.plist "$CONTENTS/Info.plist"
+cp Resources/AppIcon.icns "$CONTENTS/Resources/AppIcon.icns"
 
 # Ad-hoc sign so UNUserNotificationCenter works.
 codesign --force --sign - "$APP"
