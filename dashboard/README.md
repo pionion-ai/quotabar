@@ -5,6 +5,8 @@ plus Codex and Gemini when present) as circular gauges, with a countdown to
 reopening when a limit is reached. A self-contained companion to the repo's
 CLI scripts (no Python needed).
 
+<img src="../docs/img/popover.png" alt="QuotaBar popover showing usage gauges for Claude Code, Codex and Gemini" width="360">
+
 > **Unofficial tool.** Not affiliated with Anthropic, OpenAI, or Google; it
 > reads the usage data through the same private endpoints the official CLIs
 > use, and those can change without notice. See the
