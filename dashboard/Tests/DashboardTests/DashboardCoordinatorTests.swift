@@ -163,4 +163,46 @@ final class DashboardCoordinatorTests: XCTestCase {
         XCTAssertEqual(codexProvider.fetchCount, 1)
         XCTAssertEqual(coordinator.menuBarTitle, "◔ X 20%")
     }
+
+    // MARK: - Parallel refresh
+
+    /// Opens once; waiters before that suspend.
+    private actor Gate {
+        private var isOpen = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        func wait() async {
+            if isOpen { return }
+            await withCheckedContinuation { waiters.append($0) }
+        }
+        func open() { isOpen = true; waiters.forEach { $0.resume() }; waiters = [] }
+    }
+
+    private struct ClosureProvider: UsageProviding {
+        let body: () async throws -> [UsageWindow]
+        func fetch() async throws -> [UsageWindow] { try await body() }
+    }
+
+    /// A Claude fetch stuck behind the Keychain prompt must not hold Codex
+    /// back: here Claude only finishes once Codex has fetched. Refreshing one
+    /// provider after another would never complete.
+    func testRefreshAllDoesNotSerializeProviders() async {
+        let gate = Gate()
+        let w = [win(used: 10, resetsIn: 3600)]
+        let claude = UsageStore(provider: ClosureProvider { await gate.wait(); return w },
+                                threshold: nil, now: { self.now })
+        let codex = UsageStore(provider: ClosureProvider { await gate.open(); return w },
+                               threshold: nil, now: { self.now })
+        let coordinator = DashboardCoordinator(entries: [
+            .init(id: "claude", displayName: "Claude Code", tag: "C", store: claude),
+            .init(id: "codex", displayName: "Codex", tag: "X", store: codex),
+        ])
+
+        let done = expectation(description: "refreshAll finished")
+        let task = Task { await coordinator.refreshAll(); done.fulfill() }
+        await fulfillment(of: [done], timeout: 2)
+        task.cancel()
+        await gate.open()   // unblock a serialized run so the test process can exit
+        XCTAssertEqual(codex.loadState, .loaded(w))
+        XCTAssertEqual(claude.loadState, .loaded(w))
+    }
 }
