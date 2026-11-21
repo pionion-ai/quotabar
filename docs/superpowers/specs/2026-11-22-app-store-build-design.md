@@ -1,6 +1,6 @@
 # QuotaBar — Mac App Store build (design)
 
-Status: approved 2026-11-22.
+Status: approved and implemented 2026-11-22 (store submission pending).
 
 ## Intent
 Publish QuotaBar on the Mac App Store, showing **Claude Code and Codex only**,

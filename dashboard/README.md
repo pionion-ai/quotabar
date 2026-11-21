@@ -85,6 +85,42 @@ If you are not logged in, the popover correctly shows "Not signed in." /
 "Session expired." with a re-login button — that is the expected error state,
 not a failure.
 
+## Mac App Store build
+
+A second, sandboxed flavor of the same code is built for the Mac App Store.
+It differs from the DMG:
+
+- **Claude Code and Codex only.** Gemini and Cursor need file and process
+  access the App Sandbox doesn't grant.
+- **Claude** is read from the Keychain through Security.framework (the
+  standard consent prompt) instead of the `security` tool.
+- **Codex** is read through a read-only sandbox exception for `~/.codex/`.
+- **Re-login** copies the CLI command to the clipboard instead of opening
+  Terminal.
+
+The flavor is selected at compile time with `-Xswiftc -DAPPSTORE`; run the
+tests for both flavors with `swift test` and `swift test -Xswiftc -DAPPSTORE`.
+
+```bash
+ADHOC=1 ./package-appstore.sh          # local sandboxed app, no Apple identities
+open dist-appstore/QuotaBar.app
+
+# Store package (needs full Xcode for the universal build):
+export APP_SIGN_IDENTITY="Apple Distribution: …"
+export INSTALLER_IDENTITY="3rd Party Mac Developer Installer: …"
+export PROVISIONING_PROFILE=path/to/QuotaBar_Mac_App_Store.provisionprofile
+export TEAM_ID=ABCDE12345
+./package-appstore.sh                  # → dist-appstore/QuotaBar.pkg
+UPLOAD=1 ASC_API_KEY_ID=… ASC_API_ISSUER=… ./package-appstore.sh   # validate + upload
+```
+
+One-time setup in your Apple Developer account: an **Apple Distribution**
+and a **Mac Installer Distribution** certificate, a **Mac App Store**
+provisioning profile for `ai.pionion.quotabar`, and an App Store Connect app
+record. Listing copy, the privacy policy and App Review notes are drafted in
+[`AppStore/`](AppStore/); host the privacy policy and add screenshots
+(16:10, e.g. 2880×1800) before submitting.
+
 ## Re-login
 
 When a provider's session dies, its section shows a **Re-login to …** button.
