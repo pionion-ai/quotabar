@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Mac App Store build only (package-appstore.sh). The application- and
+     team-identifier entitlements are merged in at sign time from TEAM_ID. -->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key><true/>
+    <!-- Usage endpoints: api.anthropic.com, chatgpt.com -->
+    <key>com.apple.security.network.client</key><true/>
+    <!-- Read-only access to the Codex CLI's login (~/.codex/auth.json). -->
+    <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+    <array><string>/.codex/</string></array>
+</dict>
+</plist>
