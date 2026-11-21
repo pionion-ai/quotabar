@@ -107,3 +107,17 @@ final class CodexUsageTests: XCTestCase {
         catch { XCTFail("wrong error \(error)", file: file, line: line) }
     }
 }
+
+final class CodexPathTests: XCTestCase {
+    func testAuthPathUnderGivenHome() {
+        XCTAssertEqual(CodexUsageClient.authPath(home: "/Users/x"), "/Users/x/.codex/auth.json")
+    }
+
+    /// In the sandbox NSHomeDirectory() is the app container; ~/.codex must
+    /// still resolve to the user's real home.
+    func testRealHomeIsNotASandboxContainer() {
+        let home = CodexUsageClient.realHomeDirectory()
+        XCTAssertFalse(home.contains("/Library/Containers/"))
+        XCTAssertTrue(home.hasPrefix("/"))
+    }
+}

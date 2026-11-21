@@ -3,3 +3,5 @@ QuotaBar.app/
 QuotaBar.app/
 Dashboard.app/
 dist/
+dist-appstore/
+*.provisionprofile

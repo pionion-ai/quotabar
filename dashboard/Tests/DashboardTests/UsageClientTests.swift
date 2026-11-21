@@ -80,3 +80,36 @@ final class UsageClientTests: XCTestCase {
         catch { XCTFail("wrong error \(error)", file: file, line: line) }
     }
 }
+
+// MARK: - Credentials parsing + Keychain status mapping
+
+final class ClaudeCredentialsTests: XCTestCase {
+    func testParsesClaudeCredentials() throws {
+        let json = #"{"claudeAiOauth":{"accessToken":"abc","refreshToken":"r","expiresAt":1}}"#
+        XCTAssertEqual(try UsageClient.token(fromCredentials: Data(json.utf8)), "abc")
+    }
+
+    /// API-key users have a credentials item without `claudeAiOauth`.
+    func testCredentialsWithoutOAuthAreNotLoggedIn() {
+        for body in [#"{"mcpOAuth":{}}"#, "garbage", ""] {
+            XCTAssertThrowsError(try UsageClient.token(fromCredentials: Data(body.utf8))) {
+                XCTAssertEqual($0 as? FetchError, .notLoggedIn, "body: \(body)")
+            }
+        }
+    }
+
+    /// No item / no UI allowed: a fresh `claude` login is the fix.
+    func testMissingKeychainItemIsNotLoggedIn() {
+        for s in [errSecItemNotFound, errSecInteractionNotAllowed] {
+            XCTAssertEqual(UsageClient.keychainError(for: s), .notLoggedIn, "status \(s)")
+        }
+    }
+
+    /// The user clicked Deny (or cancelled): logging in again doesn't help,
+    /// and re-asking every poll would nag — it's its own state.
+    func testDeniedKeychainAccessIsAccessDenied() {
+        for s in [errSecUserCanceled, errSecAuthFailed] {
+            XCTAssertEqual(UsageClient.keychainError(for: s), .accessDenied, "status \(s)")
+        }
+    }
+}

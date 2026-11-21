@@ -1,7 +1,11 @@
 import SwiftUI
+import AppKit
 
 private func swiftUIColor(_ c: GaugeColor) -> Color {
-    switch c { case .green: return .green; case .amber: return .orange; case .red: return .red }
+    switch c {
+    case .green: return .green; case .amber: return .orange; case .red: return .red
+    case .neutral: return .accentColor; case .muted: return .gray
+    }
 }
 
 /// One labeled provider block in the popover: a header with the provider name,
@@ -14,6 +18,8 @@ private struct ProviderSection: View {
     /// (command, providerID) — injected so the real Terminal launch stays out
     /// of previews and any future view test.
     let launch: (String, String) -> Void
+    /// Set briefly after a copy-mode re-login press (App Store build).
+    @State private var copiedCommand: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -43,10 +49,17 @@ private struct ProviderSection: View {
                     .font(.system(.title, design: .monospaced))
             }
         }
-        if !healthy.isEmpty {
-            HStack(spacing: 16) {
-                ForEach(healthy, id: \.key) { w in gauge(w, now: now) }
+        let quotas = healthy.filter { $0.style != .share }
+        let shares = healthy.filter { $0.style == .share }
+        if !quotas.isEmpty { gaugeGrid(quotas, now: now) }
+        if !shares.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Usage value by model").font(.caption).foregroundStyle(.secondary)
+                if let note = shares.first?.note {
+                    Text(note).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
+            gaugeGrid(shares, now: now)
         }
         if reached.isEmpty && healthy.isEmpty {
             Text("No usage windows reported.")
@@ -61,10 +74,19 @@ private struct ProviderSection: View {
                 Label(AuthRecovery.staleMessage(for: err, provider: providerID),
                       systemImage: "exclamationmark.triangle")
                     .font(.caption2).foregroundStyle(.secondary)
-                if let prompt = AuthRecovery.prompt(for: err, provider: providerID) {
+                if let prompt = AuthRecovery.prompt(for: err, provider: providerID, mode: .current) {
                     reloginButton(prompt)
                 }
+                if err == .accessDenied { retryAccessButton }
             }
+        }
+    }
+
+    /// Three 88pt columns with 12pt gaps exactly fill the 288pt content width.
+    private func gaugeGrid(_ windows: [UsageWindow], now: Date) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(88), spacing: 12), count: 3),
+                  alignment: .leading, spacing: 12) {
+            ForEach(windows, id: \.key) { w in gauge(w, now: now) }
         }
     }
 
@@ -75,7 +97,7 @@ private struct ProviderSection: View {
             } currentValueLabel: {
                 VStack(spacing: 0) {
                     Text("\(Int(w.usedPercent.rounded()))%")
-                    Text("used").font(.caption2).foregroundStyle(.secondary)
+                    Text(w.style == .share ? "share" : "used").font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .gaugeStyle(.accessoryCircular)
@@ -84,11 +106,18 @@ private struct ProviderSection: View {
                 .font(.caption2)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
+                .truncationMode(.middle)
                 .fixedSize(horizontal: false, vertical: true)
-            Label(w.countdown(now: now), systemImage: "clock")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .labelStyle(.titleAndIcon)
+            if let detail = w.detail {
+                Text(detail).font(.caption2.monospacedDigit())
+            }
+            // A share of spend has no reset of its own worth repeating per model.
+            if w.style != .share {
+                Label(w.countdown(now: now), systemImage: "clock")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
+            }
         }
         .frame(width: 88)
     }
@@ -96,7 +125,7 @@ private struct ProviderSection: View {
     @ViewBuilder private func errorView(_ error: FetchError) -> some View {
         // Auth failures are the only ones the user can act on, and the action
         // differs per provider — AuthRecovery owns both decisions.
-        if let prompt = AuthRecovery.prompt(for: error, provider: providerID) {
+        if let prompt = AuthRecovery.prompt(for: error, provider: providerID, mode: .current) {
             VStack(alignment: .leading, spacing: 6) {
                 Label(prompt.message, systemImage: "person.crop.circle.badge.exclamationmark")
                     .font(.callout).foregroundStyle(.secondary)
@@ -110,6 +139,9 @@ private struct ProviderSection: View {
         } else {
             Label(unactionableMessage(error), systemImage: "wifi.exclamationmark")
                 .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)  // wrap: server messages are long
+                .textSelection(.enabled)
+            if error == .accessDenied { retryAccessButton }
         }
     }
 
@@ -118,14 +150,31 @@ private struct ProviderSection: View {
         case .rateLimited: return "Rate limited — pausing for a few minutes."
         case .network(let m): return "Network error: \(m)"
         case .decode: return "Couldn't read the usage response."
+        case .accessDenied: return "Keychain access denied."
+        case .unsupported(let m): return m  // normally hidden; see visibleEntries
         // Auth errors are handled above; an unknown provider id lands here.
         case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."
         }
     }
 
-    private func reloginButton(_ prompt: ReloginPrompt) -> some View {
-        Button(prompt.buttonTitle) { launch(prompt.command, providerID) }
+    /// After a Keychain "Deny" the store stops polling; this asks once more.
+    private var retryAccessButton: some View {
+        Button("Ask for Keychain access again") { Task { await store.retry() } }
             .font(.caption)
+    }
+
+    @ViewBuilder private func reloginButton(_ prompt: ReloginPrompt) -> some View {
+        Button(prompt.buttonTitle) {
+            launch(prompt.command, providerID)
+            guard ReloginMode.current == .copyCommand else { return }
+            copiedCommand = prompt.command
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { copiedCommand = nil }
+        }
+        .font(.caption)
+        if let copied = copiedCommand {
+            Text(AuthRecovery.copiedConfirmation(command: copied))
+                .font(.caption2).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -138,17 +187,24 @@ struct GaugesView: View {
     var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
     var launch: (String, String) -> Void = { command, providerID in
-        TerminalLauncher.live.launch(command: command, providerID: providerID)
+        switch ReloginMode.current {
+        case .launchTerminal:
+            TerminalLauncher.live.launch(command: command, providerID: providerID)
+        case .copyCommand:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(coordinator.entries.enumerated()), id: \.element.id) { index, entry in
+            let entries = coordinator.visibleEntries
+            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 ProviderSection(store: entry.store,
                                 title: entry.displayName,
                                 providerID: entry.id,
                                 launch: launch)
-                if index < coordinator.entries.count - 1 { Divider() }
+                if index < entries.count - 1 { Divider() }
             }
             Divider()
             thresholdControl

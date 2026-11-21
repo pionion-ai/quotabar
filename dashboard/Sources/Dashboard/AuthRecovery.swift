@@ -8,6 +8,15 @@ struct ReloginPrompt: Equatable {
     let command: String
 }
 
+/// How the re-login button acts: the direct build opens Terminal running the
+/// CLI; the sandboxed App Store build can't, so it copies the command instead.
+enum ReloginMode: Equatable {
+    case launchTerminal
+    case copyCommand
+
+    static var current: ReloginMode { Flavor.isAppStore ? .copyCommand : .launchTerminal }
+}
+
 /// PURE decisions about auth failures. The dashboard never refreshes tokens
 /// itself — the owning CLI does — so recovery is always "go run this command".
 enum AuthRecovery {
@@ -19,6 +28,8 @@ enum AuthRecovery {
         case "claude": return ("Claude Code", "claude")
         case "codex":  return ("Codex", "codex login")
         case "gemini": return ("Gemini", "gemini")
+        // Cursor has no login CLI; signing in happens in the app itself.
+        case "cursor": return ("Cursor", "open -a Cursor")
         default:       return nil
         }
     }
@@ -35,12 +46,17 @@ enum AuthRecovery {
     }
 
     /// Non-nil only for failures the user can fix by re-running a CLI.
-    static func prompt(for error: FetchError, provider: String) -> ReloginPrompt? {
+    static func prompt(for error: FetchError, provider: String,
+                       mode: ReloginMode = .launchTerminal) -> ReloginPrompt? {
         guard let cli = cli(for: provider),
               let message = message(for: error, provider: provider) else { return nil }
-        return ReloginPrompt(message: message,
-                             buttonTitle: "Re-login to \(cli.name)…",
-                             command: cli.command)
+        let title = mode == .copyCommand ? "Copy login command" : "Re-login to \(cli.name)…"
+        return ReloginPrompt(message: message, buttonTitle: title, command: cli.command)
+    }
+
+    /// Shown briefly after a copy-mode button press.
+    static func copiedConfirmation(command: String) -> String {
+        "Copied “\(command)” — paste it in Terminal"
     }
 
     /// First-run guidance: the re-login button just runs the CLI, which fails
@@ -53,6 +69,7 @@ enum AuthRecovery {
         case "claude": return "No CLI yet? npm install -g @anthropic-ai/claude-code"
         case "codex":  return "No CLI yet? npm install -g @openai/codex"
         case "gemini": return "No CLI yet? npm install -g @google/gemini-cli"
+        case "cursor": return "Sign in inside the Cursor app (cursor.com/download)"
         default:       return nil
         }
     }
@@ -67,6 +84,7 @@ enum AuthRecovery {
         }
         switch error {
         case .rateLimited: return "Rate limited — retrying soon"
+        case .accessDenied: return "Keychain access denied — numbers may be stale"
         default:           return "Couldn't refresh — showing last update"
         }
     }

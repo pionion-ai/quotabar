@@ -35,12 +35,15 @@ final class DashboardCoordinator: ObservableObject {
     }
     func setThresholdAll(_ value: Double?) { for e in entries { e.store.setThreshold(value) } }
 
+    /// Providers still worth showing; retired ones (see `UsageStore.isRetired`) drop out.
+    var visibleEntries: [ProviderEntry] { entries.filter { !$0.store.isRetired } }
+
     var menuBarTitle: String { Self.aggregate(states).title }
     var menuBarColor: GaugeColor { Self.aggregate(states).color }
 
     /// Snapshot of each provider's current state for aggregation.
     private var states: [ProviderState] {
-        entries.map { ProviderState(tag: $0.tag, loadState: $0.store.loadState, now: $0.store.currentTime) }
+        visibleEntries.map { ProviderState(tag: $0.tag, loadState: $0.store.loadState, now: $0.store.currentTime) }
     }
 }
 
@@ -63,10 +66,14 @@ extension DashboardCoordinator {
         struct Candidate { let tag: String; let window: UsageWindow; let now: Date }
         var candidates: [Candidate] = []
         var anyLoading = false
+        var anyLoaded = false
         for s in states {
             switch s.loadState {
             case .loaded(let windows):
-                for w in windows { candidates.append(Candidate(tag: s.tag, window: w, now: s.now)) }
+                anyLoaded = true
+                for w in windows where w.countsTowardLimit {
+                    candidates.append(Candidate(tag: s.tag, window: w, now: s.now))
+                }
             case .loading:
                 anyLoading = true
             case .failed:
@@ -75,7 +82,9 @@ extension DashboardCoordinator {
         }
 
         // No loaded data anywhere: surface loading vs. all-failed, color amber.
+        // Loaded data with no limit windows (display-only gauges): nothing is constrained.
         guard !candidates.isEmpty else {
+            if anyLoaded && !anyLoading { return ("◔ —", .green) }
             return (anyLoading ? "…" : "⚠", .amber)
         }
 

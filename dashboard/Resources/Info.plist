@@ -12,5 +12,7 @@
     <key>NSHumanReadableCopyright</key><string>© 2026 Andrei Lukin / Pionion — MIT License</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
+    <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
+    <key>ITSAppUsesNonExemptEncryption</key><false/>
 </dict>
 </plist>

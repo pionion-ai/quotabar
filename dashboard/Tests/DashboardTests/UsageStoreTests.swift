@@ -89,6 +89,24 @@ final class UsageStoreTests: XCTestCase {
         }
     }
 
+    /// An unsupported provider is gone for good: drop even last-good data and
+    /// never call the endpoint again.
+    func testUnsupportedRetiresProvider() async {
+        let provider = FlippableProvider(result: .success([win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+        await store.refresh()
+
+        provider.result = .failure(.unsupported("gone"))
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .failed(.unsupported("gone")))
+        XCTAssertTrue(store.isRetired)
+
+        provider.result = .success([])
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)
+        XCTAssertEqual(store.loadState, .failed(.unsupported("gone")))
+    }
+
     func testKeepsLastGoodDataOnTransientError() async {
         let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
         let provider = FlippableProvider(result: .success(good))
@@ -254,5 +272,32 @@ final class UsageStoreTests: XCTestCase {
             threshold: nil, now: { self.now })
         await mixed.refresh()
         XCTAssertEqual(mixed.pendingResetRefresh, futureResetsAt)
+    }
+
+    // MARK: - Keychain access denied
+
+    private final class DenyThenOKProvider: UsageProviding {
+        var calls = 0
+        var result: Result<[UsageWindow], FetchError>
+        init(_ result: Result<[UsageWindow], FetchError>) { self.result = result }
+        func fetch() async throws -> [UsageWindow] { calls += 1; return try result.get() }
+    }
+
+    /// Each fetch would put up the Keychain dialog again; after a Deny the
+    /// store must stop asking until the user explicitly retries.
+    func testAccessDeniedPausesPollingUntilRetry() async {
+        let provider = DenyThenOKProvider(.failure(.accessDenied))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .failed(.accessDenied))
+        await store.refresh()
+        XCTAssertEqual(provider.calls, 1, "no re-prompt on the next poll")
+
+        provider.result = .success([win("five_hour", "5-hour session", used: 8, resetsIn: 3600)])
+        await store.retry()
+        XCTAssertEqual(provider.calls, 2)
+        XCTAssertEqual(store.loadState, .loaded([win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]))
+        await store.refresh()
+        XCTAssertEqual(provider.calls, 3, "polling resumes after a successful retry")
     }
 }
