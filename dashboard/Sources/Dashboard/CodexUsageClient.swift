@@ -48,8 +48,18 @@ struct CodexUsageClient: UsageProviding {
                          transport: { try await URLSession.shared.data(for: $0) })
     }
 
-    static func authPath() -> String {
-        (NSHomeDirectory() as NSString).appendingPathComponent(".codex/auth.json")
+    static func authPath(home: String = realHomeDirectory()) -> String {
+        (home as NSString).appendingPathComponent(".codex/auth.json")
+    }
+
+    /// The user's actual home. Under the App Sandbox NSHomeDirectory() is the
+    /// app's container, but the read-only `/.codex/` entitlement exception is
+    /// relative to the real home.
+    static func realHomeDirectory() -> String {
+        if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
+            return String(cString: dir)
+        }
+        return NSHomeDirectory()
     }
 
     static func isAvailable() -> Bool {
