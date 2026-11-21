@@ -20,9 +20,10 @@ WHY THE ENTITLEMENTS ARE NEEDED
   Keychain. QuotaBar reads that item (with the standard macOS consent
   prompt) — read-only, never modified.
 - com.apple.security.temporary-exception.files.home-relative-path.read-only
-  (/.codex/): the Codex CLI keeps its login in ~/.codex/auth.json. QuotaBar
-  reads only that file, read-only, so users need no manual setup. It never
-  writes anywhere outside its container.
+  (/.codex/auth.json — a single file, not the folder): the Codex CLI keeps
+  its login there. QuotaBar reads that one file, read-only, so users need no
+  manual setup; other files in ~/.codex stay inaccessible. It never writes
+  anywhere outside its container.
 - network.client: to request usage from api.anthropic.com and chatgpt.com.
 
 PRIVACY

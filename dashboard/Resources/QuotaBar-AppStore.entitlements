@@ -7,8 +7,8 @@
     <key>com.apple.security.app-sandbox</key><true/>
     <!-- Usage endpoints: api.anthropic.com, chatgpt.com -->
     <key>com.apple.security.network.client</key><true/>
-    <!-- Read-only access to the Codex CLI's login (~/.codex/auth.json). -->
+    <!-- Read-only access to the Codex CLI's login file only (~/.codex/auth.json). -->
     <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
-    <array><string>/.codex/</string></array>
+    <array><string>/.codex/auth.json</string></array>
 </dict>
 </plist>

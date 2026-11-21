@@ -34,6 +34,10 @@ Developer ID DMG stays as-is, with all four providers.
 - `~/.claude/.credentials.json` is not readable in the sandbox (not needed).
 - Terminal launching (`.command` files) is not viable under sandbox/review.
 
+- **Narrowed after review (2026-11-22):** the exception is scoped to the file
+  `/.codex/auth.json`; probe confirmed it reads the file, denies siblings
+  (`config.toml`), and still reads after an atomic rewrite (Codex's refresh).
+
 ## Approaches considered
 1. **Pasted long-lived token (`claude setup-token`)** — rejected: requires a
    manual step, violating the zero-setup requirement.

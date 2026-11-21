@@ -53,7 +53,7 @@ struct CodexUsageClient: UsageProviding {
     }
 
     /// The user's actual home. Under the App Sandbox NSHomeDirectory() is the
-    /// app's container, but the read-only `/.codex/` entitlement exception is
+    /// app's container, but the read-only `/.codex/auth.json` entitlement exception is
     /// relative to the real home.
     static func realHomeDirectory() -> String {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {

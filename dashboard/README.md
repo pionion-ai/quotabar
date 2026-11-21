@@ -94,7 +94,7 @@ It differs from the DMG:
   access the App Sandbox doesn't grant.
 - **Claude** is read from the Keychain through Security.framework (the
   standard consent prompt) instead of the `security` tool.
-- **Codex** is read through a read-only sandbox exception for `~/.codex/`.
+- **Codex** is read through a read-only sandbox exception scoped to the single file `~/.codex/auth.json`.
 - **Re-login** copies the CLI command to the clipboard instead of opening
   Terminal.
 
