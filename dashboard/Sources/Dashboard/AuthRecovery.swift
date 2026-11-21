@@ -8,6 +8,15 @@ struct ReloginPrompt: Equatable {
     let command: String
 }
 
+/// How the re-login button acts: the direct build opens Terminal running the
+/// CLI; the sandboxed App Store build can't, so it copies the command instead.
+enum ReloginMode: Equatable {
+    case launchTerminal
+    case copyCommand
+
+    static var current: ReloginMode { Flavor.isAppStore ? .copyCommand : .launchTerminal }
+}
+
 /// PURE decisions about auth failures. The dashboard never refreshes tokens
 /// itself — the owning CLI does — so recovery is always "go run this command".
 enum AuthRecovery {
@@ -37,12 +46,17 @@ enum AuthRecovery {
     }
 
     /// Non-nil only for failures the user can fix by re-running a CLI.
-    static func prompt(for error: FetchError, provider: String) -> ReloginPrompt? {
+    static func prompt(for error: FetchError, provider: String,
+                       mode: ReloginMode = .launchTerminal) -> ReloginPrompt? {
         guard let cli = cli(for: provider),
               let message = message(for: error, provider: provider) else { return nil }
-        return ReloginPrompt(message: message,
-                             buttonTitle: "Re-login to \(cli.name)…",
-                             command: cli.command)
+        let title = mode == .copyCommand ? "Copy login command" : "Re-login to \(cli.name)…"
+        return ReloginPrompt(message: message, buttonTitle: title, command: cli.command)
+    }
+
+    /// Shown briefly after a copy-mode button press.
+    static func copiedConfirmation(command: String) -> String {
+        "Copied “\(command)” — paste it in Terminal"
     }
 
     /// First-run guidance: the re-login button just runs the CLI, which fails

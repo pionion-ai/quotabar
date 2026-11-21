@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 private func swiftUIColor(_ c: GaugeColor) -> Color {
     switch c {
@@ -17,6 +18,8 @@ private struct ProviderSection: View {
     /// (command, providerID) — injected so the real Terminal launch stays out
     /// of previews and any future view test.
     let launch: (String, String) -> Void
+    /// Set briefly after a copy-mode re-login press (App Store build).
+    @State private var copiedCommand: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -71,7 +74,7 @@ private struct ProviderSection: View {
                 Label(AuthRecovery.staleMessage(for: err, provider: providerID),
                       systemImage: "exclamationmark.triangle")
                     .font(.caption2).foregroundStyle(.secondary)
-                if let prompt = AuthRecovery.prompt(for: err, provider: providerID) {
+                if let prompt = AuthRecovery.prompt(for: err, provider: providerID, mode: .current) {
                     reloginButton(prompt)
                 }
             }
@@ -121,7 +124,7 @@ private struct ProviderSection: View {
     @ViewBuilder private func errorView(_ error: FetchError) -> some View {
         // Auth failures are the only ones the user can act on, and the action
         // differs per provider — AuthRecovery owns both decisions.
-        if let prompt = AuthRecovery.prompt(for: error, provider: providerID) {
+        if let prompt = AuthRecovery.prompt(for: error, provider: providerID, mode: .current) {
             VStack(alignment: .leading, spacing: 6) {
                 Label(prompt.message, systemImage: "person.crop.circle.badge.exclamationmark")
                     .font(.callout).foregroundStyle(.secondary)
@@ -151,9 +154,18 @@ private struct ProviderSection: View {
         }
     }
 
-    private func reloginButton(_ prompt: ReloginPrompt) -> some View {
-        Button(prompt.buttonTitle) { launch(prompt.command, providerID) }
-            .font(.caption)
+    @ViewBuilder private func reloginButton(_ prompt: ReloginPrompt) -> some View {
+        Button(prompt.buttonTitle) {
+            launch(prompt.command, providerID)
+            guard ReloginMode.current == .copyCommand else { return }
+            copiedCommand = prompt.command
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { copiedCommand = nil }
+        }
+        .font(.caption)
+        if let copied = copiedCommand {
+            Text(AuthRecovery.copiedConfirmation(command: copied))
+                .font(.caption2).foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -166,7 +178,13 @@ struct GaugesView: View {
     var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
     var launch: (String, String) -> Void = { command, providerID in
-        TerminalLauncher.live.launch(command: command, providerID: providerID)
+        switch ReloginMode.current {
+        case .launchTerminal:
+            TerminalLauncher.live.launch(command: command, providerID: providerID)
+        case .copyCommand:
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(command, forType: .string)
+        }
     }
 
     var body: some View {

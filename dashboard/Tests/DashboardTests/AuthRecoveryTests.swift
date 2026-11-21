@@ -23,6 +23,25 @@ final class AuthRecoveryTests: XCTestCase {
         }
     }
 
+    // MARK: - Copy mode (sandboxed App Store build can't launch Terminal)
+
+    func testCopyModeButtonTitle() {
+        let p = AuthRecovery.prompt(for: .notLoggedIn, provider: "codex", mode: .copyCommand)
+        XCTAssertEqual(p?.buttonTitle, "Copy login command")
+        XCTAssertEqual(p?.command, "codex login")
+        XCTAssertEqual(p?.message, "Not signed in.")
+    }
+
+    func testLaunchModeUnchanged() {
+        XCTAssertEqual(AuthRecovery.prompt(for: .authExpired, provider: "claude")?.buttonTitle,
+                       "Re-login to Claude Code…")
+    }
+
+    func testCopiedConfirmation() {
+        XCTAssertEqual(AuthRecovery.copiedConfirmation(command: "claude"),
+                       "Copied “claude” — paste it in Terminal")
+    }
+
     func testUnknownProviderFailsClosed() {
         XCTAssertNil(AuthRecovery.prompt(for: .authExpired, provider: "openai"))
         XCTAssertNil(AuthRecovery.prompt(for: .authExpired, provider: ""))
