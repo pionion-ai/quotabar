@@ -98,11 +98,18 @@ final class ClaudeCredentialsTests: XCTestCase {
         }
     }
 
-    /// Missing item, the user clicking Deny, or no UI allowed all read as
-    /// "Not signed in." — the popover then offers the login command.
-    func testKeychainFailuresAreNotLoggedIn() {
-        for s in [errSecItemNotFound, errSecUserCanceled, errSecAuthFailed, errSecInteractionNotAllowed] {
+    /// No item / no UI allowed: a fresh `claude` login is the fix.
+    func testMissingKeychainItemIsNotLoggedIn() {
+        for s in [errSecItemNotFound, errSecInteractionNotAllowed] {
             XCTAssertEqual(UsageClient.keychainError(for: s), .notLoggedIn, "status \(s)")
+        }
+    }
+
+    /// The user clicked Deny (or cancelled): logging in again doesn't help,
+    /// and re-asking every poll would nag — it's its own state.
+    func testDeniedKeychainAccessIsAccessDenied() {
+        for s in [errSecUserCanceled, errSecAuthFailed] {
+            XCTAssertEqual(UsageClient.keychainError(for: s), .accessDenied, "status \(s)")
         }
     }
 }

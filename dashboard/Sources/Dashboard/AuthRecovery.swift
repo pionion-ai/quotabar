@@ -84,6 +84,7 @@ enum AuthRecovery {
         }
         switch error {
         case .rateLimited: return "Rate limited — retrying soon"
+        case .accessDenied: return "Keychain access denied — numbers may be stale"
         default:           return "Couldn't refresh — showing last update"
         }
     }

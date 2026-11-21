@@ -77,6 +77,7 @@ private struct ProviderSection: View {
                 if let prompt = AuthRecovery.prompt(for: err, provider: providerID, mode: .current) {
                     reloginButton(prompt)
                 }
+                if err == .accessDenied { retryAccessButton }
             }
         }
     }
@@ -140,6 +141,7 @@ private struct ProviderSection: View {
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)  // wrap: server messages are long
                 .textSelection(.enabled)
+            if error == .accessDenied { retryAccessButton }
         }
     }
 
@@ -148,10 +150,17 @@ private struct ProviderSection: View {
         case .rateLimited: return "Rate limited — pausing for a few minutes."
         case .network(let m): return "Network error: \(m)"
         case .decode: return "Couldn't read the usage response."
+        case .accessDenied: return "Keychain access denied."
         case .unsupported(let m): return m  // normally hidden; see visibleEntries
         // Auth errors are handled above; an unknown provider id lands here.
         case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."
         }
+    }
+
+    /// After a Keychain "Deny" the store stops polling; this asks once more.
+    private var retryAccessButton: some View {
+        Button("Ask for Keychain access again") { Task { await store.retry() } }
+            .font(.caption)
     }
 
     @ViewBuilder private func reloginButton(_ prompt: ReloginPrompt) -> some View {

@@ -7,6 +7,9 @@ enum FetchError: Error, Equatable {
     case rateLimited
     case network(String)
     case decode
+    /// The user denied this app access to the credential (Keychain "Deny").
+    /// Polling pauses until they retry, so the dialog doesn't reappear every minute.
+    case accessDenied
     /// The service is permanently unavailable to this account (e.g. a retired
     /// free tier). The provider is hidden and never polled again.
     case unsupported(String)
@@ -81,9 +84,14 @@ struct UsageClient: UsageProviding {
         return creds.claudeAiOauth.accessToken
     }
 
-    /// Every Keychain failure — no item, the user clicked Deny, no UI
-    /// allowed — is something a fresh `claude` login fixes.
-    static func keychainError(for status: OSStatus) -> FetchError { .notLoggedIn }
+    /// Deny/cancel in the Keychain dialog is the user's answer, not a missing
+    /// login; anything else (no item, no UI allowed) a fresh `claude` fixes.
+    static func keychainError(for status: OSStatus) -> FetchError {
+        switch status {
+        case errSecUserCanceled, errSecAuthFailed: return .accessDenied
+        default: return .notLoggedIn
+        }
+    }
 
     /// Sandbox-safe read of the Claude CLI's item. The token is never logged.
     static func readKeychainItemToken() throws -> String {

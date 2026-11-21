@@ -42,6 +42,12 @@ final class AuthRecoveryTests: XCTestCase {
                        "Copied “claude” — paste it in Terminal")
     }
 
+    func testAccessDeniedHasNoLoginPromptButAStaleMessage() {
+        XCTAssertNil(AuthRecovery.prompt(for: .accessDenied, provider: "claude"))
+        XCTAssertEqual(AuthRecovery.staleMessage(for: .accessDenied, provider: "claude"),
+                       "Keychain access denied — numbers may be stale")
+    }
+
     func testUnknownProviderFailsClosed() {
         XCTAssertNil(AuthRecovery.prompt(for: .authExpired, provider: "openai"))
         XCTAssertNil(AuthRecovery.prompt(for: .authExpired, provider: ""))
