@@ -14,6 +14,10 @@
 # Optional upload (UPLOAD=1), App Store Connect API key:
 #   ASC_API_KEY_ID, ASC_API_ISSUER   (key file in ~/.appstoreconnect/private_keys/)
 #
+# Optional: BUILD_NUMBER (CFBundleVersion — must increase on every upload) and
+# VERSION (CFBundleShortVersionString), applied to the bundle's copy of
+# Info.plist only; defaults come from Resources/Info.plist.
+#
 # Local sandbox smoke test, no Apple identities needed:
 #   ADHOC=1 ./package-appstore.sh && open dist-appstore/QuotaBar.app
 set -euo pipefail
@@ -56,12 +60,23 @@ cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/PrivacyInfo.xcprivacy "$APP/Contents/Resources/PrivacyInfo.xcprivacy"
 
+PLIST="$APP/Contents/Info.plist"
+[[ -n "${BUILD_NUMBER:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
+[[ -n "${VERSION:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+echo "    version $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" \
+     "build $(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+
 ENT_DIR="$(mktemp -d)"
 trap 'rm -rf "$ENT_DIR"' EXIT
 SIGN_ENT="$ENT_DIR/entitlements.plist"
 cp "$ENTITLEMENTS" "$SIGN_ENT"
 
+# Files copied from Downloads etc. carry com.apple.quarantine; App Store
+# validation rejects bundles containing quarantined files.
+strip_xattrs() { xattr -cr "$APP"; }
+
 if [[ "${ADHOC:-}" == "1" ]]; then
+  strip_xattrs
   echo "==> Ad-hoc signing with sandbox entitlements (local testing only)"
   codesign --force --sign - --entitlements "$SIGN_ENT" "$APP"
   codesign -d --entitlements - "$APP" 2>/dev/null | grep -q app-sandbox
@@ -73,6 +88,7 @@ fi
 
 echo "==> Embedding provisioning profile"
 cp "$PROVISIONING_PROFILE" "$APP/Contents/embedded.provisionprofile"
+strip_xattrs
 
 echo "==> Adding application/team identifiers to entitlements"
 /usr/libexec/PlistBuddy -c "Add :com.apple.application-identifier string $TEAM_ID.$BUNDLE_ID" "$SIGN_ENT"
