@@ -63,3 +63,38 @@ final class LaunchGateTests: XCTestCase {
         XCTAssertEqual(starts, 1)
     }
 }
+
+final class WelcomeContentTests: XCTestCase {
+    private func allText(_ c: WelcomeContent) -> String {
+        ([c.title, c.subtitle, c.passwordHeading, c.passwordBody, c.usageHeading] + c.usageBullets)
+            .joined(separator: "\n")
+    }
+
+    func testTitle() {
+        XCTAssertEqual(WelcomeContent.make(appStore: true).title, "Welcome to QuotaBar")
+    }
+
+    func testAppStoreCopyNamesOnlyItsProviders() {
+        let text = allText(.make(appStore: true))
+        for s in ["Claude Code", "Codex", "Always Allow", "~/.codex/auth.json", "password"] {
+            XCTAssertTrue(text.contains(s), "missing \(s)")
+        }
+        for s in ["Gemini", "Cursor"] { XCTAssertFalse(text.contains(s), "should not mention \(s)") }
+    }
+
+    func testDirectCopyNamesAllProviders() {
+        let text = allText(.make(appStore: false))
+        for s in ["Claude Code", "Codex", "Gemini", "Cursor", "Always Allow"] {
+            XCTAssertTrue(text.contains(s), "missing \(s)")
+        }
+        // The direct build re-prompts after Deny (via `security`), so it can't promise this.
+        XCTAssertFalse(text.contains("Deny is fine"))
+    }
+
+    func testUsageBulletsStateThePromises() {
+        let bullets = WelcomeContent.make(appStore: true).usageBullets.joined(separator: "\n")
+        for s in ["Read-only", "only to its own provider", "Deny"] {
+            XCTAssertTrue(bullets.contains(s), "missing \(s)")
+        }
+    }
+}
