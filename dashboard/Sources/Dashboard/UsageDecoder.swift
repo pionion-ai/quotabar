@@ -55,7 +55,7 @@ enum UsageDecoder {
         // Throws if the top level is not a JSON object (preserves garbage-throws behavior).
         let payload = try JSONDecoder().decode(Payload.self, from: data)
 
-        return knownWindows.compactMap { known in
+        let named: [UsageWindow] = knownWindows.compactMap { known in
             guard let block = payload.blocks[known.key],
                   let util = block.utilization,
                   let iso = block.resets_at,
@@ -63,6 +63,33 @@ enum UsageDecoder {
             else { return nil }
             return UsageWindow(key: known.key, label: known.label,
                                usedPercent: util, resetsAt: date)
+        }
+        // A model with its own named key (e.g. seven_day_sonnet) keeps that gauge.
+        let namedLabels = Set(named.map(\.label))
+        return named + modelScopedWeekly(from: data).filter { !namedLabels.contains($0.label) }
+    }
+
+    /// Per-model weekly limits that exist only in the `limits` list, e.g.
+    /// `{"kind":"weekly_scoped","percent":11,"resets_at":…,
+    ///   "scope":{"model":{"display_name":"Fable"}}}` → "7-day Fable".
+    /// Read leniently: any malformed entry is skipped.
+    private static func modelScopedWeekly(from data: Data) -> [UsageWindow] {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let limits = root["limits"] as? [Any] else { return [] }
+        var seen = Set<String>()
+        return limits.compactMap { item in
+            guard let entry = item as? [String: Any],
+                  entry["kind"] as? String == "weekly_scoped",
+                  let percent = (entry["percent"] as? NSNumber)?.doubleValue,
+                  let iso = entry["resets_at"] as? String, let date = parseDate(iso),
+                  let scope = entry["scope"] as? [String: Any],
+                  let model = scope["model"] as? [String: Any],
+                  let name = (model["display_name"] as? String)?.trimmingCharacters(in: .whitespaces),
+                  !name.isEmpty
+            else { return nil }
+            let key = "weekly_scoped_" + name.lowercased().replacingOccurrences(of: " ", with: "_")
+            guard seen.insert(key).inserted else { return nil }
+            return UsageWindow(key: key, label: "7-day \(name)", usedPercent: percent, resetsAt: date)
         }
     }
 }
