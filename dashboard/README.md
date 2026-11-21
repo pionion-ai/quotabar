@@ -28,14 +28,16 @@ The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
 
 ## First run — what to expect
 
-0. **A welcome window** explains what QuotaBar reads and why macOS is about
-   to ask for your password. Nothing is read until you click **Continue**
-   (or **Quit**). Reopen it any time from **How it works** in the popover.
-1. **A Keychain dialog** ("security wants to access …Claude Code-credentials")
-   appears the first time the app reads the Claude Code token. This is
-   QuotaBar reading — never writing — the token the Claude CLI stored; see
-   the security section below. Click **Always Allow**, or you'll be asked
-   again on every 60-second refresh.
+0. **A welcome window** explains what QuotaBar reads and how logins are used.
+   Nothing is read until you click **Continue**; **Quit** exits without
+   reading anything. Reopen it any time from **How it works** in the popover
+   (if you miss it, the popover offers **Finish setup…**).
+1. **No password prompt, normally.** The Claude CLI saves its login with
+   macOS's `security` tool, and QuotaBar reads it through the same tool, so
+   the Keychain doesn't ask. If a dialog ("security wants to access …Claude
+   Code-credentials") ever does appear, click **Always Allow**, or you'll be
+   asked again on every 60-second refresh. QuotaBar only reads — never
+   writes — that login; see the security section below.
 2. **Gauges appear** for every provider whose CLI is logged in. Codex,
    Gemini and Cursor sections show up automatically when `~/.codex/auth.json`,
    `~/.gemini/oauth_creds.json`, or the Cursor app's state database exist —
@@ -45,7 +47,7 @@ The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
    that CLI (`claude`, `codex login`, `gemini`) or, for Cursor, opens the
    Cursor app; if you've never installed the CLI, the popover shows the
    `npm install -g …` command to run first.
-4. **A notification permission prompt** appears on first launch. Alerts are
+4. **A notification permission prompt** appears right after **Continue**. Alerts are
    sent when a window hits its limit (always) and, if you turn on the
    threshold in the popover, when it crosses that threshold (off by default).
    Deny the prompt if you want no notifications at all.
@@ -95,8 +97,10 @@ It differs from the DMG:
 
 - **Claude Code and Codex only.** Gemini and Cursor need file and process
   access the App Sandbox doesn't grant.
-- **Claude** is read from the Keychain through Security.framework (the
-  standard consent prompt) instead of the `security` tool.
+- **Claude** is read the same way as the DMG (`/usr/bin/security`, no
+  prompt — verified inside the sandbox); if that fails it falls back to
+  Security.framework, which shows macOS's consent prompt and pauses polling
+  after a Deny.
 - **Codex** is read through a read-only sandbox exception scoped to the single file `~/.codex/auth.json`.
 - **Re-login** copies the CLI command to the clipboard instead of opening
   Terminal.

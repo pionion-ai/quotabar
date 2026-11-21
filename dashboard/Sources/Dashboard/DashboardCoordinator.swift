@@ -26,7 +26,7 @@ final class DashboardCoordinator: ObservableObject {
 
     /// False until the user has continued past the welcome screen; nothing
     /// may read credentials before then (see LaunchGate).
-    private(set) var isMonitoring = false
+    @Published private(set) var isMonitoring = false
 
     func startAll() {
         isMonitoring = true
@@ -46,6 +46,12 @@ final class DashboardCoordinator: ObservableObject {
                 group.addTask { await store.refresh() }
             }
         }
+    }
+    /// The popover's on-open refresh: a no-op until the user has continued
+    /// past the welcome screen.
+    func refreshIfMonitoring() async {
+        guard isMonitoring else { return }
+        await refreshAll()
     }
     func setThresholdAll(_ value: Double?) { for e in entries { e.store.setThreshold(value) } }
 

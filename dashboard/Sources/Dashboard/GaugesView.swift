@@ -186,6 +186,8 @@ struct GaugesView: View {
     var onThresholdChange: () -> Void
     var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
+    /// Reopens the first-run window (Continue/Quit) if it was missed.
+    var onFinishSetup: () -> Void = { WelcomeWindow.reopenFirstRun() }
     /// Reopens the first-run explanation (already started, so just "Close").
     var onHowItWorks: () -> Void = {
         WelcomeWindow.show(content: .make(appStore: Flavor.isAppStore), firstRun: false, onContinue: {})
@@ -202,6 +204,15 @@ struct GaugesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !coordinator.isMonitoring {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("QuotaBar hasn’t started yet.").font(.callout)
+                    Text("Read how it uses your logins, then continue.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("Finish setup…", action: onFinishSetup)
+                }
+                Divider()
+            }
             let entries = coordinator.visibleEntries
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 ProviderSection(store: entry.store,

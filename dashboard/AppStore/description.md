@@ -26,8 +26,9 @@ reached, the menu bar switches to a live countdown to the moment it reopens.
   the provider they belong to. No analytics, no servers of our own.
 
 Requirements: a logged-in Claude Code CLI (`claude`) and/or Codex CLI
-(`codex login`). On first launch macOS asks whether QuotaBar may read the
-Claude Code login from your Keychain — choose "Always Allow".
+(`codex login`). On first launch a welcome screen explains exactly what
+QuotaBar reads before it reads anything. If macOS ever asks to let QuotaBar
+read the Claude Code login from your Keychain, choose "Always Allow".
 
 QuotaBar is an independent tool. It is not affiliated with, endorsed by, or
 sponsored by Anthropic or OpenAI. Claude and Codex are trademarks of their

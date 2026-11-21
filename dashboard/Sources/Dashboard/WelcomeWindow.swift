@@ -60,11 +60,22 @@ struct WelcomeView: View {
 @MainActor
 enum WelcomeWindow {
     private static var window: NSWindow?
+    private static var closeObserver: NSObjectProtocol?
+    /// The first-run window's arguments, so "Finish setup…" can bring it back.
+    private static var pendingFirstRun: (content: WelcomeContent, onContinue: () -> Void)?
+
+    static func reopenFirstRun() {
+        guard let pending = pendingFirstRun else { return }
+        show(content: pending.content, firstRun: true, onContinue: pending.onContinue)
+    }
 
     /// `firstRun`: no close button — the user either continues (consent) or
     /// quits; closing the window must not leave the app silently idle.
     static func show(content: WelcomeContent, firstRun: Bool, onContinue: @escaping () -> Void) {
-        if let existing = window, existing.isVisible {
+        if firstRun { pendingFirstRun = (content, onContinue) }
+        if let existing = window {
+            // Never stack a second window: a hidden or minimized one comes back.
+            existing.deminiaturize(nil)
             bringToFront(existing)
             return
         }
@@ -72,12 +83,18 @@ enum WelcomeWindow {
         let w = NSWindow(contentRect: .zero, styleMask: style, backing: .buffered, defer: false)
         w.title = "QuotaBar"
         w.isReleasedWhenClosed = false
+        // Closing a reopened (non-first-run) window via its close button.
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: w, queue: .main) { _ in
+            MainActor.assumeIsolated { window = nil }
+        }
         let view = WelcomeView(
             content: content,
             primaryTitle: firstRun ? "Continue" : "Close",
-            onPrimary: {
-                window?.close()
-                window = nil
+            onPrimary: { [weak w] in
+                w?.close()
+                if window === w { window = nil }
+                if firstRun { pendingFirstRun = nil }
                 onContinue()
             },
             onQuit: firstRun ? { NSApplication.shared.terminate(nil) } : nil)
@@ -91,5 +108,7 @@ enum WelcomeWindow {
     private static func bringToFront(_ w: NSWindow) {
         NSApplication.shared.activate(ignoringOtherApps: true)
         w.makeKeyAndOrderFront(nil)
+        // activate() is advisory on macOS 14+ (e.g. a login-item launch).
+        w.orderFrontRegardless()
     }
 }

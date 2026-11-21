@@ -6,7 +6,8 @@ QuotaBar does not collect, store, sell, or share any personal data.
 
 **What the app reads, on your Mac only**
 - The login the Claude Code command-line tool saved in your macOS Keychain
-  (item "Claude Code-credentials"), read with your permission.
+  (item "Claude Code-credentials"), read only after you continue past the
+  welcome screen, using macOS's built-in `security` tool.
 - The login the Codex command-line tool saved in `~/.codex/auth.json`,
   read-only.
 

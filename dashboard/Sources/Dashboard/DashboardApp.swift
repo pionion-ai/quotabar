@@ -84,7 +84,7 @@ struct DashboardApp: App {
                 onLaunchAtLoginChange: applyLaunchAtLogin,
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
-            .task { if coordinator.isMonitoring { await coordinator.refreshAll() } }
+            .task { await coordinator.refreshIfMonitoring() }
         } label: {
             Text(coordinator.menuBarTitle)
                 .foregroundStyle(menuBarColor(coordinator.menuBarColor))

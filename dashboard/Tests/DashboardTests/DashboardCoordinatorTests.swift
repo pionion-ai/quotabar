@@ -214,4 +214,15 @@ final class DashboardCoordinatorTests: XCTestCase {
         coordinator.startAll()
         XCTAssertTrue(coordinator.isMonitoring)
     }
+
+    /// Opening the popover before Continue must not fetch (no credential read).
+    func testRefreshIfMonitoringDoesNothingBeforeStart() async {
+        let provider = CountingProvider(windows: [win(used: 10, resetsIn: 3600)])
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+        let coordinator = DashboardCoordinator(entries: [
+            .init(id: "claude", displayName: "Claude Code", tag: "C", store: store),
+        ])
+        await coordinator.refreshIfMonitoring()
+        XCTAssertEqual(provider.fetchCount, 0)
+    }
 }
