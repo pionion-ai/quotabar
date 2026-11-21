@@ -97,4 +97,31 @@ final class WelcomeContentTests: XCTestCase {
             XCTAssertTrue(bullets.contains(s), "missing \(s)")
         }
     }
+
+    /// The Keychain read is silent now (via `security`), and the window is
+    /// also reopened after setup — the heading must be true in both cases.
+    func testHeadingDoesNotPromiseAPasswordPrompt() {
+        for appStore in [true, false] {
+            let c = WelcomeContent.make(appStore: appStore)
+            XCTAssertEqual(c.passwordHeading, "How QuotaBar reads your logins")
+            XCTAssertTrue(c.passwordBody.contains("no password"), "flavor appStore=\(appStore)")
+            XCTAssertTrue(c.passwordBody.contains("Always Allow"))
+        }
+    }
+
+    func testExplainsTheNotificationPrompt() {
+        for appStore in [true, false] {
+            XCTAssertTrue(WelcomeContent.make(appStore: appStore).usageBullets
+                .contains { $0.contains("notifications") })
+        }
+    }
+}
+
+final class WelcomeVersionTests: XCTestCase {
+    /// Copy changed materially (no password prompt): users who saw v1 see it once more.
+    func testVersionOneUsersSeeTheNewCopy() {
+        let d = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        d.set(1, forKey: "welcomeSeenVersion")
+        XCTAssertFalse(WelcomeState.hasSeen(d))
+    }
 }

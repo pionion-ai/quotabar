@@ -3,7 +3,7 @@ import Foundation
 /// Whether the first-run welcome screen has been acknowledged. Stored as a
 /// version so a material change to what the app reads can show it again.
 enum WelcomeState {
-    static let currentVersion = 1
+    static let currentVersion = 2  // v2: Keychain read no longer prompts
     private static let key = "welcomeSeenVersion"
 
     static func hasSeen(_ defaults: UserDefaults = .standard) -> Bool {
@@ -64,34 +64,29 @@ struct WelcomeContent: Equatable {
             ? "Your Claude Code and Codex usage limits, live in the menu bar — look for ◔."
             : "Your Claude Code, Codex, Gemini and Cursor usage limits, live in the menu bar — look for ◔."
 
-        let password = appStore
-            ? """
-              QuotaBar reads the login the Claude Code CLI saved in your Keychain. \
-              macOS asks you to approve that: enter your Mac password and choose \
-              “Always Allow” so it doesn’t ask again. Codex’s login is read from \
-              ~/.codex/auth.json — no prompt needed.
-              """
-            : """
-              QuotaBar reads the login the Claude Code CLI saved in your Keychain \
-              (through macOS’s “security” tool). macOS asks you to approve that: \
-              enter your Mac password and choose “Always Allow” so it doesn’t ask \
-              again. Other logins are read from their own files: Codex \
-              ~/.codex/auth.json, Gemini ~/.gemini/oauth_creds.json, Cursor the \
-              Cursor app’s settings database.
-              """
+        let claude = """
+            Claude Code: QuotaBar reads the login the Claude CLI saved in your \
+            Keychain, through macOS’s built-in “security” tool — the same tool the \
+            CLI saves it with — so no password is needed. If macOS ever does ask, \
+            choose “Always Allow” so it doesn’t ask again.
+            """
+        let others = appStore
+            ? "Codex: read from ~/.codex/auth.json."
+            : "Codex: ~/.codex/auth.json · Gemini: ~/.gemini/oauth_creds.json · Cursor: the Cursor app’s settings database."
 
         return WelcomeContent(
             title: "Welcome to QuotaBar",
             subtitle: subtitle,
-            passwordHeading: "Next, macOS will ask for your password",
-            passwordBody: password,
+            passwordHeading: "How QuotaBar reads your logins",
+            passwordBody: claude + "\n\n" + others,
             usageHeading: "How your logins are used",
             usageBullets: [
                 "Read-only: never changed, copied, or stored by QuotaBar.",
                 "Each login is sent only to its own provider, to fetch your usage. No servers of ours, no analytics.",
+                "macOS will also ask whether QuotaBar may send notifications — used only for limit alerts.",
             ] + (appStore
                  // Only the App Store build pauses after a Keychain Deny (UsageStore.retry).
-                 ? ["Clicking Deny is fine — you can allow access later from the menu."]
+                 ? ["If macOS asks and you click Deny, you can allow access later from the menu."]
                  : []))
     }
 }
