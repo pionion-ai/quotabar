@@ -1,13 +1,13 @@
 # QuotaBar
 
 A native macOS menu bar app showing live AI-subscription usage (Claude Code,
-plus Codex and Gemini when present) as circular gauges, with a countdown to
+plus Codex, Gemini and Cursor when present) as circular gauges, with a countdown to
 reopening when a limit is reached. A self-contained companion to the repo's
 CLI scripts (no Python needed).
 
 <img src="../docs/img/popover.png" alt="QuotaBar popover showing usage gauges for Claude Code, Codex and Gemini" width="360">
 
-> **Unofficial tool.** Not affiliated with Anthropic, OpenAI, or Google; it
+> **Unofficial tool.** Not affiliated with Anthropic, OpenAI, Google, or Anysphere (Cursor); it
 > reads the usage data through the same private endpoints the official CLIs
 > use, and those can change without notice. See the
 > [disclaimer in the root README](../README.md#disclaimer--unofficial-tool-private-endpoints).
@@ -15,7 +15,8 @@ CLI scripts (no Python needed).
 ## Requirements
 - macOS 13 (Ventura) or later
 - A logged-in Claude Code session (the token is read from the Keychain).
-  Codex and Gemini sections appear automatically if those CLIs are logged in.
+  Codex, Gemini and Cursor sections appear automatically if those tools are
+  logged in.
 
 ## Install (prebuilt)
 
@@ -32,15 +33,19 @@ The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
    QuotaBar reading — never writing — the token the Claude CLI stored; see
    the security section below. Click **Always Allow**, or you'll be asked
    again on every 60-second refresh.
-2. **Gauges appear** for every provider whose CLI is logged in. Codex and
-   Gemini sections show up automatically when `~/.codex/auth.json` /
-   `~/.gemini/oauth_creds.json` exist — nothing to configure.
+2. **Gauges appear** for every provider whose CLI is logged in. Codex,
+   Gemini and Cursor sections show up automatically when `~/.codex/auth.json`,
+   `~/.gemini/oauth_creds.json`, or the Cursor app's state database exist —
+   nothing to configure.
 3. **"Not signed in."** with a re-login button is the normal state for a
    provider whose CLI has no session yet. The button opens Terminal running
-   that CLI (`claude`, `codex login`, `gemini`); if you've never installed
-   the CLI, the popover shows the `npm install -g …` command to run first.
-4. **Notifications** are optional and off by default — enabling the
-   threshold alert triggers the standard permission prompt.
+   that CLI (`claude`, `codex login`, `gemini`) or, for Cursor, opens the
+   Cursor app; if you've never installed the CLI, the popover shows the
+   `npm install -g …` command to run first.
+4. **A notification permission prompt** appears on first launch. Alerts are
+   sent when a window hits its limit (always) and, if you turn on the
+   threshold in the popover, when it crosses that threshold (off by default).
+   Deny the prompt if you want no notifications at all.
 
 QuotaBar needs at least one logged-in CLI to show anything useful. There is
 no account, no sign-up, and no configuration of its own.
@@ -48,8 +53,10 @@ no account, no sign-up, and no configuration of its own.
 ## Security: what the app does with your tokens
 
 - It **reads** each provider's credentials from the store its own CLI uses
-  (Claude: Keychain, Codex: `~/.codex/auth.json`, Gemini: its OAuth cache).
-  It never writes, refreshes, or deletes credentials.
+  (Claude: Keychain, Codex: `~/.codex/auth.json`, Gemini: its OAuth cache,
+  Cursor: the session token in
+  `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`,
+  opened read-only). It never writes, refreshes, or deletes credentials.
 - Each token is sent **only to its own provider's usage endpoint** — no
   telemetry, no third-party servers, no analytics.
 - The full source is in `Sources/Dashboard/` — a handful of small Swift
@@ -82,7 +89,7 @@ not a failure.
 
 When a provider's session dies, its section shows a **Re-login to …** button.
 Clicking it opens Terminal running that provider's CLI — `claude`, `codex
-login`, or `gemini`. Finish the login there, then reopen the popover: it
+login`, or `gemini` — or, for Cursor, opens the Cursor app (sign in there). Finish the login there, then reopen the popover: it
 refreshes on open, so the gauges heal immediately.
 
 The dashboard never refreshes or writes tokens itself. It only reads the
@@ -95,16 +102,22 @@ token from a long-lived refresh token on every fetch, so it rarely asks. When
 it does, the refresh token itself has expired.
 
 ## What it shows
-- A circular gauge per usage window (5-hour, 7-day, per-model) showing **% left**,
-  colored green → amber → red as it fills.
-- The menu bar title shows the lowest remaining % (`◔ 92%`), or — when a limit is
-  reached — a live `⛔ H:MM:SS` countdown to the soonest reopening.
-- Optional notifications when a window crosses your threshold or hits its limit
-  (set the threshold in the popover; off by default).
+- A circular gauge per usage window (5-hour, 7-day, per-model) showing **% used**,
+  colored green → amber → red as it fills. Cursor adds informational gauges
+  (included pools while on-demand spend has headroom, and each model's share of
+  spend) that never drive the menu bar or alerts.
+- The menu bar title shows the % used of the most-constrained window (`◔ 8%`),
+  or — when a limit is reached — a live `⛔ H:MM:SS` countdown to the soonest
+  reopening.
+- Notifications, titled with the provider (e.g. "Codex usage"), when a window
+  hits its limit, plus — optionally — when it crosses your threshold (set in
+  the popover; off by default).
 
 ## How it works
-Reads the OAuth token via `security find-generic-password -s "Claude Code-credentials"`,
-calls `GET /api/oauth/usage`, and renders the windows. It polls every 60s; the
+For Claude, reads the OAuth token via `security find-generic-password -s "Claude Code-credentials"`,
+calls `GET /api/oauth/usage`, and renders the windows. Codex, Gemini and Cursor
+work the same way against their own usage endpoints (Cursor: the
+`DashboardService` RPCs its app uses for the usage panel). It polls every 60s; the
 countdown ticks locally every second. Only reads — never writes credentials.
 
 ## Tests

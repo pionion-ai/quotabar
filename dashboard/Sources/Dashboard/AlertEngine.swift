@@ -24,7 +24,7 @@ struct AlertEngine {
 
     mutating func evaluate(_ windows: [UsageWindow], now: Date) -> [AlertEvent] {
         var events: [AlertEvent] = []
-        for w in windows {
+        for w in windows where w.countsTowardLimit {
             let current = band(for: w)
             let previous = lastLevel[w.key] ?? .none
             if current.rawValue > previous.rawValue {

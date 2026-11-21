@@ -89,6 +89,24 @@ final class UsageStoreTests: XCTestCase {
         }
     }
 
+    /// An unsupported provider is gone for good: drop even last-good data and
+    /// never call the endpoint again.
+    func testUnsupportedRetiresProvider() async {
+        let provider = FlippableProvider(result: .success([win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]))
+        let store = UsageStore(provider: provider, threshold: nil, now: { self.now })
+        await store.refresh()
+
+        provider.result = .failure(.unsupported("gone"))
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .failed(.unsupported("gone")))
+        XCTAssertTrue(store.isRetired)
+
+        provider.result = .success([])
+        await store.refresh()
+        XCTAssertEqual(provider.fetchCount, 2)
+        XCTAssertEqual(store.loadState, .failed(.unsupported("gone")))
+    }
+
     func testKeepsLastGoodDataOnTransientError() async {
         let good = [win("five_hour", "5-hour session", used: 8, resetsIn: 3600)]
         let provider = FlippableProvider(result: .success(good))

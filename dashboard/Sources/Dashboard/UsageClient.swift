@@ -6,6 +6,9 @@ enum FetchError: Error, Equatable {
     case rateLimited
     case network(String)
     case decode
+    /// The service is permanently unavailable to this account (e.g. a retired
+    /// free tier). The provider is hidden and never polled again.
+    case unsupported(String)
 }
 
 protocol UsageProviding {

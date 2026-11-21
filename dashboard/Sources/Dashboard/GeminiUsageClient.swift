@@ -9,6 +9,7 @@ struct GeminiUsageClient: UsageProviding {
 
     static let tokenEndpoint = URL(string: "https://oauth2.googleapis.com/token")!
     static let quotaEndpoint = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota")!
+    static let loadCodeAssistEndpoint = URL(string: "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist")!
 
     let credsReader: () throws -> (refreshToken: String, project: String)
     let transport: (URLRequest) async throws -> (Data, URLResponse)
@@ -28,8 +29,14 @@ struct GeminiUsageClient: UsageProviding {
         // 1. Refresh the short-lived access token in-memory (never written back).
         let accessToken = try await refresh(refreshToken: creds.refreshToken)
 
-        // 2. Fetch the quota buckets with the freshly minted bearer.
-        let quotaData = try await retrieveQuota(accessToken: accessToken, project: creds.project)
+        // 2. Quota is per Code Assist project. Without one configured, ask the
+        //    server which project this account uses — as the gemini CLI does.
+        let project = creds.project.isEmpty
+            ? try await loadCodeAssistProject(accessToken: accessToken)
+            : creds.project
+
+        // 3. Fetch the quota buckets with the freshly minted bearer.
+        let quotaData = try await retrieveQuota(accessToken: accessToken, project: project)
 
         do { return try GeminiUsageDecoder.windows(from: quotaData) }
         catch { throw FetchError.decode }
@@ -62,12 +69,47 @@ struct GeminiUsageClient: UsageProviding {
         return token
     }
 
+    /// `cloudaicompanionProject` arrives as a plain id, or as `{"id": ...}`.
+    private struct LoadCodeAssistResponse: Decodable {
+        struct IneligibleTier: Decodable { let reasonCode: String?; let reasonMessage: String? }
+        let project: String?
+        let ineligibleTiers: [IneligibleTier]?
+        private enum CodingKeys: String, CodingKey { case cloudaicompanionProject, ineligibleTiers }
+        private struct ProjectObject: Decodable { let id: String? }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            project = (try? c.decode(String.self, forKey: .cloudaicompanionProject))
+                ?? (try? c.decode(ProjectObject.self, forKey: .cloudaicompanionProject))?.id
+            ineligibleTiers = try? c.decode([IneligibleTier].self, forKey: .ineligibleTiers)
+        }
+    }
+
+    /// Returns "" when the account has no Code Assist project yet; quota is
+    /// then requested without one.
+    private func loadCodeAssistProject(accessToken: String) async throws -> String {
+        let data = try await post(Self.loadCodeAssistEndpoint, accessToken: accessToken, body: [
+            "metadata": ["ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"],
+        ])
+        let decoded = try? JSONDecoder().decode(LoadCodeAssistResponse.self, from: data)
+        // Google retired the gemini CLI for "Code Assist for individuals"
+        // (2026): the account's tier is reported ineligible for this client.
+        if let retired = decoded?.ineligibleTiers?.first(where: { $0.reasonCode == "UNSUPPORTED_CLIENT" }) {
+            throw FetchError.unsupported(retired.reasonMessage ?? "This client is no longer supported.")
+        }
+        return decoded?.project ?? ""
+    }
+
     private func retrieveQuota(accessToken: String, project: String) async throws -> Data {
-        var req = URLRequest(url: Self.quotaEndpoint)
+        try await post(Self.quotaEndpoint, accessToken: accessToken,
+                       body: project.isEmpty ? [:] : ["project": project])
+    }
+
+    private func post(_ url: URL, accessToken: String, body: [String: Any]) async throws -> Data {
+        var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["project": project])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         let data: Data, response: URLResponse
         do { (data, response) = try await transport(req) }
@@ -76,11 +118,30 @@ struct GeminiUsageClient: UsageProviding {
         if let http = response as? HTTPURLResponse {
             if http.statusCode == 401 { throw FetchError.authExpired }
             if http.statusCode == 429 { throw FetchError.rateLimited }
+            // 403 = not entitled (e.g. "no valid license"): permanent, stop polling.
+            if http.statusCode == 403 {
+                throw FetchError.unsupported(Self.describe(status: 403, call: url, body: data))
+            }
             guard (200..<300).contains(http.statusCode) else {
-                throw FetchError.network("HTTP \(http.statusCode)")
+                throw FetchError.network(Self.describe(status: http.statusCode, call: url, body: data))
             }
         }
         return data
+    }
+
+    private struct GoogleError: Decodable {
+        struct Detail: Decodable { let message: String? }
+        let error: Detail?
+    }
+
+    /// "HTTP 403 (retrieveUserQuota): <Google's message>" — Google's error
+    /// messages name the project/API at fault and carry no credentials.
+    static func describe(status: Int, call url: URL, body: Data) -> String {
+        let call = url.lastPathComponent.components(separatedBy: ":").last ?? url.lastPathComponent
+        let base = "HTTP \(status) (\(call))"
+        guard let message = (try? JSONDecoder().decode(GoogleError.self, from: body))?.error?.message,
+              !message.isEmpty else { return base }
+        return "\(base): \(message.prefix(200))"
     }
 
     private func form(_ s: String) -> String {
@@ -101,10 +162,6 @@ struct GeminiUsageClient: UsageProviding {
         (NSHomeDirectory() as NSString).appendingPathComponent(".gemini/oauth_creds.json")
     }
 
-    static func projectsPath() -> String {
-        (NSHomeDirectory() as NSString).appendingPathComponent(".gemini/projects.json")
-    }
-
     static func isAvailable() -> Bool {
         FileManager.default.fileExists(atPath: credsPath())
     }
@@ -119,36 +176,14 @@ struct GeminiUsageClient: UsageProviding {
             throw FetchError.notLoggedIn
         }
 
-        let project = readProjectId() ?? ""
-        return (rt, project)
+        return (rt, configuredProject(env: ProcessInfo.processInfo.environment))
     }
 
-    // projects.json is `{"projects": {...}}`; the project id is the first
-    // non-empty string value found anywhere in the tree. Returns nil if none.
-    private static func readProjectId() -> String? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: projectsPath())),
-              let json = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
-        }
-        return firstNonEmptyString(in: json)
-    }
-
-    private static func firstNonEmptyString(in value: Any) -> String? {
-        switch value {
-        case let s as String:
-            return s.isEmpty ? nil : s
-        case let dict as [String: Any]:
-            for (_, v) in dict {
-                if let found = firstNonEmptyString(in: v) { return found }
-            }
-            return nil
-        case let array as [Any]:
-            for v in array {
-                if let found = firstNonEmptyString(in: v) { return found }
-            }
-            return nil
-        default:
-            return nil
-        }
+    /// An explicitly configured Cloud project, from the env vars the gemini CLI
+    /// honours; "" means "ask loadCodeAssist". (`~/.gemini/projects.json` is not
+    /// a source: it maps local folders to short names, not Cloud project ids.)
+    static func configuredProject(env: [String: String]) -> String {
+        env["GOOGLE_CLOUD_PROJECT"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? env["GOOGLE_CLOUD_PROJECT_ID"] ?? ""
     }
 }

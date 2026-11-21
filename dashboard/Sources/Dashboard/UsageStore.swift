@@ -20,6 +20,10 @@ final class UsageStore: ObservableObject {
     /// avoid hammering a rate-limited endpoint.
     private var backoffUntil: Date?
 
+    /// Set once the provider reports `.unsupported`: the store stops polling
+    /// and the popover hides it.
+    var isRetired: Bool { if case .failed(.unsupported) = loadState { return true }; return false }
+
     var onAlerts: ([AlertEvent]) -> Void = { _ in }
 
     private let provider: UsageProviding
@@ -77,6 +81,7 @@ final class UsageStore: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
+        if isRetired { return }
         // Skip the network call while a rate-limit backoff is active.
         if let until = backoffUntil, now() < until { return }
 
@@ -98,6 +103,8 @@ final class UsageStore: ObservableObject {
 
             let fetchError = (error as? FetchError) ?? .network(error.localizedDescription)
             lastError = fetchError
+            // Permanent: last-good data will never refresh again, so drop it.
+            if case .unsupported = fetchError { loadState = .failed(fetchError); return }
             // Keep last-good gauges visible on a transient failure; only blank
             // to the error view when we have no prior loaded data.
             if !hasLoadedData { loadState = .failed(fetchError) }
@@ -111,8 +118,9 @@ final class UsageStore: ObservableObject {
         return false
     }
 
+    /// Windows that count as limits; display-only ones never drive the menu bar.
     private var windows: [UsageWindow] {
-        if case .loaded(let w) = loadState { return w }
+        if case .loaded(let w) = loadState { return w.filter(\.countsTowardLimit) }
         return []
     }
 

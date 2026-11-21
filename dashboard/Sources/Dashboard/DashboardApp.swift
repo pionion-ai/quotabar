@@ -13,7 +13,7 @@ struct DashboardApp: App {
         let settings = Settings.load()
 
         let claudeStore = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
-        claudeStore.onAlerts = { Notifier.post($0) }
+        claudeStore.onAlerts = { Notifier.post($0, provider: "Claude Code") }
         let claude = DashboardCoordinator.ProviderEntry(
             id: "claude", displayName: "Claude Code", tag: "C", store: claudeStore
         )
@@ -21,7 +21,7 @@ struct DashboardApp: App {
         var codex: DashboardCoordinator.ProviderEntry?
         if CodexUsageClient.isAvailable() {
             let codexStore = UsageStore(provider: CodexUsageClient.live(), threshold: settings.threshold)
-            codexStore.onAlerts = { Notifier.post($0) }
+            codexStore.onAlerts = { Notifier.post($0, provider: "Codex") }
             codex = DashboardCoordinator.ProviderEntry(
                 id: "codex", displayName: "Codex", tag: "X", store: codexStore
             )
@@ -30,14 +30,23 @@ struct DashboardApp: App {
         var gemini: DashboardCoordinator.ProviderEntry?
         if GeminiUsageClient.isAvailable() {
             let geminiStore = UsageStore(provider: GeminiUsageClient.live(), threshold: settings.threshold)
-            geminiStore.onAlerts = { Notifier.post($0) }
+            geminiStore.onAlerts = { Notifier.post($0, provider: "Gemini") }
             gemini = DashboardCoordinator.ProviderEntry(
                 id: "gemini", displayName: "Gemini", tag: "G", store: geminiStore
             )
         }
 
+        var cursor: DashboardCoordinator.ProviderEntry?
+        if CursorUsageClient.isAvailable() {
+            let cursorStore = UsageStore(provider: CursorUsageClient.live(), threshold: settings.threshold)
+            cursorStore.onAlerts = { Notifier.post($0, provider: "Cursor") }
+            cursor = DashboardCoordinator.ProviderEntry(
+                id: "cursor", displayName: "Cursor", tag: "Cu", store: cursorStore
+            )
+        }
+
         let coordinator = DashboardCoordinator(
-            entries: [claude] + (codex.map { [$0] } ?? []) + (gemini.map { [$0] } ?? [])
+            entries: [claude] + [codex, gemini, cursor].compactMap { $0 }
         )
         Notifier.requestAuthorization()
         coordinator.startAll()
@@ -67,7 +76,9 @@ struct DashboardApp: App {
     }
 
     private func menuBarColor(_ c: GaugeColor) -> Color {
-        switch c { case .green: return .green; case .amber: return .orange; case .red: return .red }
+        switch c {
+        case .green: return .green; case .amber: return .orange; case .red: return .red; case .neutral, .muted: return .primary
+        }
     }
 
     private func applyThreshold() {

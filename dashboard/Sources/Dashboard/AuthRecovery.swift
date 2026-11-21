@@ -19,6 +19,8 @@ enum AuthRecovery {
         case "claude": return ("Claude Code", "claude")
         case "codex":  return ("Codex", "codex login")
         case "gemini": return ("Gemini", "gemini")
+        // Cursor has no login CLI; signing in happens in the app itself.
+        case "cursor": return ("Cursor", "open -a Cursor")
         default:       return nil
         }
     }
@@ -53,6 +55,7 @@ enum AuthRecovery {
         case "claude": return "No CLI yet? npm install -g @anthropic-ai/claude-code"
         case "codex":  return "No CLI yet? npm install -g @openai/codex"
         case "gemini": return "No CLI yet? npm install -g @google/gemini-cli"
+        case "cursor": return "Sign in inside the Cursor app (cursor.com/download)"
         default:       return nil
         }
     }

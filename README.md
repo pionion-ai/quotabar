@@ -1,7 +1,8 @@
 # QuotaBar
 
 See how much of your **AI coding subscriptions** you've used — and when each
-rate-limit window resets — for Claude Code, OpenAI Codex, and Gemini CLI.
+rate-limit window resets — for Claude Code, OpenAI Codex, Gemini CLI, and
+Cursor (in the menu bar app).
 
 <img src="docs/img/popover.png" alt="QuotaBar popover showing usage gauges for Claude Code, Codex and Gemini" width="360" align="right">
 
@@ -9,8 +10,9 @@ rate-limit window resets — for Claude Code, OpenAI Codex, and Gemini CLI.
 The repo contains:
 
 - **[`dashboard/`](dashboard/) — QuotaBar.app**, a native macOS menu bar app
-  showing live circular gauges per usage window, with Codex (ChatGPT plan)
-  and Gemini sections appearing automatically when those CLIs are logged in.
+  showing live circular gauges per usage window, with Codex (ChatGPT plan),
+  Gemini and Cursor sections appearing automatically when those tools are
+  logged in.
   See its README for install and build instructions.
 - **`claude_usage.py`** — a tiny, dependency-free CLI that reports Claude
   Code usage as a human-readable summary or JSON (documented below) — ideal

@@ -1,10 +1,25 @@
 import Foundation
 
+/// How a window participates in limits. `.info` and `.share` are display-only:
+/// they render as gauges but never read as "reached", never alert, and never
+/// drive the menu-bar title.
+enum WindowStyle: Equatable {
+    case limit  // a real quota that blocks usage at 100%
+    case info   // a quota that currently doesn't block (e.g. overflow billing is available)
+    case share  // a slice of the whole (e.g. one model's share of spend), not a quota
+}
+
 struct UsageWindow: Equatable {
     let key: String
     let label: String
     let usedPercent: Double
     let resetsAt: Date
+    var style: WindowStyle = .limit
+    /// Optional extra line under the label (e.g. "$0.82 / $25").
+    var detail: String? = nil
+    /// Optional caption for the group this window belongs to (e.g. what the
+    /// per-model dollars are covered by). Shared by every window in the group.
+    var note: String? = nil
 }
 
 enum WindowState: Equatable {
@@ -12,16 +27,21 @@ enum WindowState: Equatable {
     case reached(reopensAt: Date)
 }
 
-enum GaugeColor: Equatable { case green, amber, red }
+enum GaugeColor: Equatable { case green, amber, red, neutral, muted }
 
 extension UsageWindow {
     var remainingPercent: Double { min(100, max(0, 100 - usedPercent)) }
 
+    var countsTowardLimit: Bool { style == .limit }
+
     var state: WindowState {
-        usedPercent >= 100 ? .reached(reopensAt: resetsAt) : .ok(remaining: remainingPercent)
+        countsTowardLimit && usedPercent >= 100
+            ? .reached(reopensAt: resetsAt) : .ok(remaining: remainingPercent)
     }
 
     func color() -> GaugeColor {
+        if style == .share { return .neutral }
+        if style == .info { return .muted }
         switch usedPercent {
         case ..<75: return .green
         case ..<90: return .amber

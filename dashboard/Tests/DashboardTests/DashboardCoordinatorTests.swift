@@ -117,6 +117,28 @@ final class DashboardCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.menuBarColor, .green)
     }
 
+    private struct FailingProvider: UsageProviding {
+        let error: FetchError
+        func fetch() async throws -> [UsageWindow] { throw error }
+    }
+
+    /// A retired provider vanishes: hidden from the popover and ignored by the
+    /// menu bar (no "⚠", no tag prefix as if it were still a second provider).
+    func testRetiredProviderIsHiddenAndIgnored() async {
+        let claude = UsageStore(provider: FakeProvider(windows: [win(used: 13, resetsIn: 3600)]),
+                                threshold: nil, now: { self.now })
+        let gemini = UsageStore(provider: FailingProvider(error: .unsupported("gone")),
+                                threshold: nil, now: { self.now })
+        let coordinator = DashboardCoordinator(entries: [
+            .init(id: "claude", displayName: "Claude Code", tag: "C", store: claude),
+            .init(id: "gemini", displayName: "Gemini", tag: "G", store: gemini),
+        ])
+        await coordinator.refreshAll()
+        XCTAssertEqual(coordinator.visibleEntries.map(\.id), ["claude"])
+        XCTAssertEqual(coordinator.menuBarTitle, "◔ 13%")
+        XCTAssertEqual(coordinator.menuBarColor, .green)
+    }
+
     // Counts fetches so we can assert refreshAll() hit every store.
     private final class CountingProvider: UsageProviding, @unchecked Sendable {
         let windows: [UsageWindow]

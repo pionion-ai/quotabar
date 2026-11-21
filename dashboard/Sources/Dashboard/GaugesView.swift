@@ -1,7 +1,10 @@
 import SwiftUI
 
 private func swiftUIColor(_ c: GaugeColor) -> Color {
-    switch c { case .green: return .green; case .amber: return .orange; case .red: return .red }
+    switch c {
+    case .green: return .green; case .amber: return .orange; case .red: return .red
+    case .neutral: return .accentColor; case .muted: return .gray
+    }
 }
 
 /// One labeled provider block in the popover: a header with the provider name,
@@ -43,10 +46,17 @@ private struct ProviderSection: View {
                     .font(.system(.title, design: .monospaced))
             }
         }
-        if !healthy.isEmpty {
-            HStack(spacing: 16) {
-                ForEach(healthy, id: \.key) { w in gauge(w, now: now) }
+        let quotas = healthy.filter { $0.style != .share }
+        let shares = healthy.filter { $0.style == .share }
+        if !quotas.isEmpty { gaugeGrid(quotas, now: now) }
+        if !shares.isEmpty {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Usage value by model").font(.caption).foregroundStyle(.secondary)
+                if let note = shares.first?.note {
+                    Text(note).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
             }
+            gaugeGrid(shares, now: now)
         }
         if reached.isEmpty && healthy.isEmpty {
             Text("No usage windows reported.")
@@ -68,6 +78,14 @@ private struct ProviderSection: View {
         }
     }
 
+    /// Three 88pt columns with 12pt gaps exactly fill the 288pt content width.
+    private func gaugeGrid(_ windows: [UsageWindow], now: Date) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(88), spacing: 12), count: 3),
+                  alignment: .leading, spacing: 12) {
+            ForEach(windows, id: \.key) { w in gauge(w, now: now) }
+        }
+    }
+
     private func gauge(_ w: UsageWindow, now: Date) -> some View {
         VStack(spacing: 4) {
             Gauge(value: w.usedPercent, in: 0...100) {
@@ -75,7 +93,7 @@ private struct ProviderSection: View {
             } currentValueLabel: {
                 VStack(spacing: 0) {
                     Text("\(Int(w.usedPercent.rounded()))%")
-                    Text("used").font(.caption2).foregroundStyle(.secondary)
+                    Text(w.style == .share ? "share" : "used").font(.caption2).foregroundStyle(.secondary)
                 }
             }
             .gaugeStyle(.accessoryCircular)
@@ -84,11 +102,18 @@ private struct ProviderSection: View {
                 .font(.caption2)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
+                .truncationMode(.middle)
                 .fixedSize(horizontal: false, vertical: true)
-            Label(w.countdown(now: now), systemImage: "clock")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .labelStyle(.titleAndIcon)
+            if let detail = w.detail {
+                Text(detail).font(.caption2.monospacedDigit())
+            }
+            // A share of spend has no reset of its own worth repeating per model.
+            if w.style != .share {
+                Label(w.countdown(now: now), systemImage: "clock")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .labelStyle(.titleAndIcon)
+            }
         }
         .frame(width: 88)
     }
@@ -110,6 +135,8 @@ private struct ProviderSection: View {
         } else {
             Label(unactionableMessage(error), systemImage: "wifi.exclamationmark")
                 .font(.callout).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)  // wrap: server messages are long
+                .textSelection(.enabled)
         }
     }
 
@@ -118,6 +145,7 @@ private struct ProviderSection: View {
         case .rateLimited: return "Rate limited — pausing for a few minutes."
         case .network(let m): return "Network error: \(m)"
         case .decode: return "Couldn't read the usage response."
+        case .unsupported(let m): return m  // normally hidden; see visibleEntries
         // Auth errors are handled above; an unknown provider id lands here.
         case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."
         }
@@ -143,12 +171,13 @@ struct GaugesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(coordinator.entries.enumerated()), id: \.element.id) { index, entry in
+            let entries = coordinator.visibleEntries
+            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 ProviderSection(store: entry.store,
                                 title: entry.displayName,
                                 providerID: entry.id,
                                 launch: launch)
-                if index < coordinator.entries.count - 1 { Divider() }
+                if index < entries.count - 1 { Divider() }
             }
             Divider()
             thresholdControl
