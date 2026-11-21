@@ -24,7 +24,14 @@ final class DashboardCoordinator: ObservableObject {
         }
     }
 
-    func startAll() { for e in entries { e.store.start() } }
+    /// False until the user has continued past the welcome screen; nothing
+    /// may read credentials before then (see LaunchGate).
+    private(set) var isMonitoring = false
+
+    func startAll() {
+        isMonitoring = true
+        for e in entries { e.store.start() }
+    }
 
     /// Refresh every provider now — used when the popover opens, so a token
     /// the user just renewed shows up without waiting for the 60s tick.

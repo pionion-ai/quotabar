@@ -186,6 +186,10 @@ struct GaugesView: View {
     var onThresholdChange: () -> Void
     var onLaunchAtLoginChange: () -> Void
     var onQuit: () -> Void
+    /// Reopens the first-run explanation (already started, so just "Close").
+    var onHowItWorks: () -> Void = {
+        WelcomeWindow.show(content: .make(appStore: Flavor.isAppStore), firstRun: false, onContinue: {})
+    }
     var launch: (String, String) -> Void = { command, providerID in
         switch ReloginMode.current {
         case .launchTerminal:
@@ -223,6 +227,8 @@ struct GaugesView: View {
                 .font(.caption2).foregroundStyle(.secondary)
             Link("GitHub", destination: URL(string: "https://github.com/pionion-ai/quotabar")!)
                 .font(.caption2)
+            Button("How it works", action: onHowItWorks)
+                .buttonStyle(.link).font(.caption2)
             Spacer()
             Button("Quit", action: onQuit)
         }

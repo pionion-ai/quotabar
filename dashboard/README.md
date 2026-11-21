@@ -28,6 +28,9 @@ The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
 
 ## First run — what to expect
 
+0. **A welcome window** explains what QuotaBar reads and why macOS is about
+   to ask for your password. Nothing is read until you click **Continue**
+   (or **Quit**). Reopen it any time from **How it works** in the popover.
 1. **A Keychain dialog** ("security wants to access …Claude Code-credentials")
    appears the first time the app reads the Claude Code token. This is
    QuotaBar reading — never writing — the token the Claude CLI stored; see

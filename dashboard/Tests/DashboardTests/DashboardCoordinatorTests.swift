@@ -205,4 +205,13 @@ final class DashboardCoordinatorTests: XCTestCase {
         XCTAssertEqual(codex.loadState, .loaded(w))
         XCTAssertEqual(claude.loadState, .loaded(w))
     }
+
+    /// The popover's on-open refresh must not read credentials before the
+    /// user has continued past the welcome screen.
+    func testNotMonitoringUntilStarted() {
+        let coordinator = DashboardCoordinator(entries: [])
+        XCTAssertFalse(coordinator.isMonitoring)
+        coordinator.startAll()
+        XCTAssertTrue(coordinator.isMonitoring)
+    }
 }

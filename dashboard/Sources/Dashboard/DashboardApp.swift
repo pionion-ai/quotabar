@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct DashboardApp: App {
     private static let defaultThresholdPercent: Double = 85
+    /// Kept alive for the welcome window's Continue callback.
+    private static var launchGate: LaunchGate?
 
     @StateObject private var coordinator: DashboardCoordinator
     @State private var thresholdEnabled: Bool
@@ -49,8 +51,22 @@ struct DashboardApp: App {
         let coordinator = DashboardCoordinator(
             entries: [claude] + [codex, gemini, cursor].compactMap { $0 }
         )
-        Notifier.requestAuthorization()
-        coordinator.startAll()
+        // Explain first, then ask: nothing reads credentials or raises a
+        // system prompt until the welcome screen's Continue (first run only).
+        var gate: LaunchGate?
+        gate = LaunchGate(
+            hasSeen: WelcomeState.hasSeen(),
+            start: {
+                Notifier.requestAuthorization()
+                coordinator.startAll()
+            },
+            showWelcome: {
+                WelcomeWindow.show(content: .make(appStore: Flavor.isAppStore), firstRun: true,
+                                   onContinue: { gate?.confirm() })
+            },
+            markSeen: { WelcomeState.markSeen() })
+        Self.launchGate = gate
+        DispatchQueue.main.async { gate?.launch() }
         _coordinator = StateObject(wrappedValue: coordinator)
         _thresholdEnabled = State(initialValue: settings.threshold != nil)
         _thresholdValue = State(initialValue: settings.threshold ?? Self.defaultThresholdPercent)
@@ -68,7 +84,7 @@ struct DashboardApp: App {
                 onLaunchAtLoginChange: applyLaunchAtLogin,
                 onQuit: { NSApplication.shared.terminate(nil) }
             )
-            .task { await coordinator.refreshAll() }
+            .task { if coordinator.isMonitoring { await coordinator.refreshAll() } }
         } label: {
             Text(coordinator.menuBarTitle)
                 .foregroundStyle(menuBarColor(coordinator.menuBarColor))
