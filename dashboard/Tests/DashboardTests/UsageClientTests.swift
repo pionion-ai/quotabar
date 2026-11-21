@@ -112,4 +112,27 @@ final class ClaudeCredentialsTests: XCTestCase {
             XCTAssertEqual(UsageClient.keychainError(for: s), .accessDenied, "status \(s)")
         }
     }
+
+    // MARK: - Reader fallback chain
+
+    func testFirstWorkingReaderWins() throws {
+        var secondCalled = false
+        let token = try UsageClient.firstToken([{ "via-security" }, { secondCalled = true; return "via-keychain" }])
+        XCTAssertEqual(token, "via-security")
+        XCTAssertFalse(secondCalled, "fallback must not run (it may show a Keychain prompt)")
+    }
+
+    func testFallsBackWhenFirstReaderFails() throws {
+        let token = try UsageClient.firstToken([{ throw FetchError.notLoggedIn }, { "via-keychain" }])
+        XCTAssertEqual(token, "via-keychain")
+    }
+
+    /// The last reader's error is the one the user sees (e.g. accessDenied
+    /// from the consent prompt pauses polling).
+    func testAllReadersFailingThrowsTheLastError() {
+        XCTAssertThrowsError(try UsageClient.firstToken([{ throw FetchError.notLoggedIn },
+                                                          { throw FetchError.accessDenied }])) {
+            XCTAssertEqual($0 as? FetchError, .accessDenied)
+        }
+    }
 }

@@ -62,13 +62,30 @@ struct UsageClient: UsageProviding {
         catch { throw FetchError.decode }
     }
 
-    /// Real wiring: Keychain token, network via URLSession. The direct build
-    /// reads via `security` (its Keychain approval predates this split, so
-    /// existing users aren't re-prompted); the sandboxed App Store build can't
-    /// run that tool and asks Security.framework directly.
+    /// Real wiring: Keychain token, network via URLSession.
+    ///
+    /// The Claude CLI writes its Keychain item through `/usr/bin/security`, so
+    /// that tool is on the item's access list and reading through it raises no
+    /// password prompt — verified to work from inside the App Sandbox too
+    /// (2026-11-22). If it ever fails, the App Store build falls back to
+    /// Security.framework, which shows macOS's consent prompt (and pauses
+    /// polling on Deny); the direct build keeps its historical behavior.
     static func live() -> UsageClient {
-        UsageClient(tokenReader: Flavor.isAppStore ? Self.readKeychainItemToken : Self.readKeychainToken,
-                    transport: { try await URLSession.shared.data(for: $0) })
+        let readers: [() throws -> String] = Flavor.isAppStore
+            ? [Self.readKeychainToken, Self.readKeychainItemToken]
+            : [Self.readKeychainToken]
+        return UsageClient(tokenReader: { try firstToken(readers) },
+                           transport: { try await URLSession.shared.data(for: $0) })
+    }
+
+    /// The first reader that succeeds; later readers run only if earlier ones
+    /// fail (a fallback may show a prompt). Throws the last reader's error.
+    static func firstToken(_ readers: [() throws -> String]) throws -> String {
+        var lastError: Error = FetchError.notLoggedIn
+        for read in readers {
+            do { return try read() } catch { lastError = error }
+        }
+        throw lastError
     }
 
     static let keychainService = "Claude Code-credentials"
