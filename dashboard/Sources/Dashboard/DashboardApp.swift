@@ -11,6 +11,7 @@ struct DashboardApp: App {
 
     init() {
         let settings = Settings.load()
+        let enabled = Set(Flavor.providerIDs(appStore: Flavor.isAppStore))
 
         let claudeStore = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
         claudeStore.onAlerts = { Notifier.post($0, provider: "Claude Code") }
@@ -19,7 +20,7 @@ struct DashboardApp: App {
         )
 
         var codex: DashboardCoordinator.ProviderEntry?
-        if CodexUsageClient.isAvailable() {
+        if enabled.contains("codex"), CodexUsageClient.isAvailable() {
             let codexStore = UsageStore(provider: CodexUsageClient.live(), threshold: settings.threshold)
             codexStore.onAlerts = { Notifier.post($0, provider: "Codex") }
             codex = DashboardCoordinator.ProviderEntry(
@@ -28,7 +29,7 @@ struct DashboardApp: App {
         }
 
         var gemini: DashboardCoordinator.ProviderEntry?
-        if GeminiUsageClient.isAvailable() {
+        if enabled.contains("gemini"), GeminiUsageClient.isAvailable() {
             let geminiStore = UsageStore(provider: GeminiUsageClient.live(), threshold: settings.threshold)
             geminiStore.onAlerts = { Notifier.post($0, provider: "Gemini") }
             gemini = DashboardCoordinator.ProviderEntry(
@@ -37,7 +38,7 @@ struct DashboardApp: App {
         }
 
         var cursor: DashboardCoordinator.ProviderEntry?
-        if CursorUsageClient.isAvailable() {
+        if enabled.contains("cursor"), CursorUsageClient.isAvailable() {
             let cursorStore = UsageStore(provider: CursorUsageClient.live(), threshold: settings.threshold)
             cursorStore.onAlerts = { Notifier.post($0, provider: "Cursor") }
             cursor = DashboardCoordinator.ProviderEntry(
