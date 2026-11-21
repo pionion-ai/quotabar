@@ -80,3 +80,29 @@ final class UsageClientTests: XCTestCase {
         catch { XCTFail("wrong error \(error)", file: file, line: line) }
     }
 }
+
+// MARK: - Credentials parsing + Keychain status mapping
+
+final class ClaudeCredentialsTests: XCTestCase {
+    func testParsesClaudeCredentials() throws {
+        let json = #"{"claudeAiOauth":{"accessToken":"abc","refreshToken":"r","expiresAt":1}}"#
+        XCTAssertEqual(try UsageClient.token(fromCredentials: Data(json.utf8)), "abc")
+    }
+
+    /// API-key users have a credentials item without `claudeAiOauth`.
+    func testCredentialsWithoutOAuthAreNotLoggedIn() {
+        for body in [#"{"mcpOAuth":{}}"#, "garbage", ""] {
+            XCTAssertThrowsError(try UsageClient.token(fromCredentials: Data(body.utf8))) {
+                XCTAssertEqual($0 as? FetchError, .notLoggedIn, "body: \(body)")
+            }
+        }
+    }
+
+    /// Missing item, the user clicking Deny, or no UI allowed all read as
+    /// "Not signed in." — the popover then offers the login command.
+    func testKeychainFailuresAreNotLoggedIn() {
+        for s in [errSecItemNotFound, errSecUserCanceled, errSecAuthFailed, errSecInteractionNotAllowed] {
+            XCTAssertEqual(UsageClient.keychainError(for: s), .notLoggedIn, "status \(s)")
+        }
+    }
+}
