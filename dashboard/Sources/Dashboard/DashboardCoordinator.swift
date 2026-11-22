@@ -37,8 +37,8 @@ final class DashboardCoordinator: ObservableObject {
     /// the user just renewed shows up without waiting for the 60s tick.
     /// `UsageStore.refresh()` is re-entrancy guarded and honours the rate-limit
     /// backoff, so repeated opens cannot stampede an endpoint.
-    /// Providers refresh concurrently: one waiting on a Keychain prompt or a
-    /// slow endpoint must not hold the others' gauges back.
+    /// Providers refresh concurrently: one waiting on a slow endpoint must
+    /// not hold the others' gauges back.
     func refreshAll() async {
         await withTaskGroup(of: Void.self) { group in
             for e in entries {

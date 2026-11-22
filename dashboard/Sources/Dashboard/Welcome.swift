@@ -16,7 +16,7 @@ enum WelcomeState {
 }
 
 /// Holds back everything that reads credentials or raises a system prompt
-/// (Keychain, notifications) until the user has read the welcome screen.
+/// (logins, notifications) until the user has read the welcome screen.
 final class LaunchGate {
     private let hasSeen: Bool
     private let start: () -> Void
