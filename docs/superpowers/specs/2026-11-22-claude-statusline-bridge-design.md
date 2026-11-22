@@ -1,6 +1,6 @@
 # QuotaBar — Claude usage via the Claude Code status line (design)
 
-Status: proposed 2026-11-22.
+Status: approved and implemented 2026-11-22.
 
 ## Intent
 Stop reading Claude subscription credentials. Anthropic's Claude Code legal

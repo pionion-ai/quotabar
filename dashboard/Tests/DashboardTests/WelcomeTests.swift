@@ -76,7 +76,7 @@ final class WelcomeContentTests: XCTestCase {
 
     func testAppStoreCopyNamesOnlyItsProviders() {
         let text = allText(.make(appStore: true))
-        for s in ["Claude Code", "Codex", "Always Allow", "~/.codex/auth.json", "password"] {
+        for s in ["Claude Code", "Codex", "~/.codex/auth.json"] {
             XCTAssertTrue(text.contains(s), "missing \(s)")
         }
         for s in ["Gemini", "Cursor"] { XCTAssertFalse(text.contains(s), "should not mention \(s)") }
@@ -84,7 +84,7 @@ final class WelcomeContentTests: XCTestCase {
 
     func testDirectCopyNamesAllProviders() {
         let text = allText(.make(appStore: false))
-        for s in ["Claude Code", "Codex", "Gemini", "Cursor", "Always Allow"] {
+        for s in ["Claude Code", "Codex", "Gemini", "Cursor"] {
             XCTAssertTrue(text.contains(s), "missing \(s)")
         }
         // The direct build re-prompts after Deny (via `security`), so it can't promise this.
@@ -93,19 +93,23 @@ final class WelcomeContentTests: XCTestCase {
 
     func testUsageBulletsStateThePromises() {
         let bullets = WelcomeContent.make(appStore: true).usageBullets.joined(separator: "\n")
-        for s in ["Read-only", "only to its own provider", "Deny"] {
+        for s in ["Read-only", "only to its own provider"] {
             XCTAssertTrue(bullets.contains(s), "missing \(s)")
         }
     }
 
-    /// The Keychain read is silent now (via `security`), and the window is
-    /// also reopened after setup — the heading must be true in both cases.
-    func testHeadingDoesNotPromiseAPasswordPrompt() {
+    /// v3: Claude data comes from the status line — no login, Keychain or
+    /// password is involved, and the copy must say so plainly.
+    func testExplainsTheStatusLineConnection() {
         for appStore in [true, false] {
             let c = WelcomeContent.make(appStore: appStore)
-            XCTAssertEqual(c.passwordHeading, "How QuotaBar reads your logins")
-            XCTAssertTrue(c.passwordBody.contains("no password"), "flavor appStore=\(appStore)")
-            XCTAssertTrue(c.passwordBody.contains("Always Allow"))
+            XCTAssertEqual(c.passwordHeading, "How QuotaBar gets your numbers")
+            let text = allText(c)
+            XCTAssertTrue(text.contains("status line"), "appStore=\(appStore)")
+            XCTAssertTrue(text.contains("~/.quotabar"))
+            XCTAssertTrue(text.contains("never reads your Claude login"))
+            XCTAssertFalse(text.contains("Keychain"))
+            XCTAssertFalse(text.contains("Always Allow"))
         }
     }
 
@@ -118,10 +122,10 @@ final class WelcomeContentTests: XCTestCase {
 }
 
 final class WelcomeVersionTests: XCTestCase {
-    /// Copy changed materially (no password prompt): users who saw v1 see it once more.
-    func testVersionOneUsersSeeTheNewCopy() {
+    /// Copy changed materially (status line, no Keychain): earlier versions see it once more.
+    func testEarlierVersionUsersSeeTheNewCopy() {
         let d = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
-        d.set(1, forKey: "welcomeSeenVersion")
+        d.set(2, forKey: "welcomeSeenVersion")
         XCTAssertFalse(WelcomeState.hasSeen(d))
     }
 }

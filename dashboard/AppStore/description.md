@@ -13,22 +13,25 @@ when each window resets — without leaving your editor.
 QuotaBar puts your AI coding subscription limits in the menu bar.
 
 If you use the Claude Code or Codex command-line tools, QuotaBar shows each
-usage window — the 5-hour session, the weekly limit, per-model limits — as a
+usage window — the 5-hour session and the weekly limit — as a
 circular gauge, colored green → amber → red as it fills. When a limit is
 reached, the menu bar switches to a live countdown to the moment it reopens.
 
-• Zero setup: QuotaBar picks up the login your Claude Code or Codex CLI
-  already has. No accounts, no API keys, nothing to paste.
+• Claude Code without sharing your login: connect once and QuotaBar reads
+  the usage numbers Claude Code itself reports to its status line.
+• Codex with zero setup: picks up the login your Codex CLI already has.
 • Menu-bar only: no Dock icon, no windows.
 • Optional alerts when a window crosses a threshold you choose, and when a
   limit is reached.
-• Private by design: your credentials are read on your Mac and sent only to
-  the provider they belong to. No analytics, no servers of our own.
+• Private by design: QuotaBar never reads your Claude login; the Codex login
+  is read on your Mac and sent only to OpenAI. No analytics, no servers of
+  our own.
 
-Requirements: a logged-in Claude Code CLI (`claude`) and/or Codex CLI
-(`codex login`). On first launch a welcome screen explains exactly what
-QuotaBar reads before it reads anything. If macOS ever asks to let QuotaBar
-read the Claude Code login from your Keychain, choose "Always Allow".
+Requirements: Claude Code with a Pro/Max subscription and/or a logged-in
+Codex CLI (`codex login`). On first launch a welcome screen explains exactly
+what QuotaBar reads before it reads anything. Connecting Claude Code means
+pasting one setup command into Terminal; Claude numbers update while Claude
+Code is running.
 
 QuotaBar is an independent tool. It is not affiliated with, endorsed by, or
 sponsored by Anthropic or OpenAI. Claude and Codex are trademarks of their

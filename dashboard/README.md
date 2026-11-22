@@ -14,7 +14,8 @@ CLI scripts (no Python needed).
 
 ## Requirements
 - macOS 13 (Ventura) or later
-- A logged-in Claude Code session (the token is read from the Keychain).
+- Claude Code with a Pro/Max subscription, connected once through QuotaBar's
+  status line (see below) — QuotaBar never reads your Claude login.
   Codex, Gemini and Cursor sections appear automatically if those tools are
   logged in.
 
@@ -32,12 +33,11 @@ The app is menu-bar-only: look for `◔ N%` in the menu bar, not the Dock.
    Nothing is read until you click **Continue**; **Quit** exits without
    reading anything. Reopen it any time from **How it works** in the popover
    (if you miss it, the popover offers **Finish setup…**).
-1. **No password prompt, normally.** The Claude CLI saves its login with
-   macOS's `security` tool, and QuotaBar reads it through the same tool, so
-   the Keychain doesn't ask. If a dialog ("security wants to access …Claude
-   Code-credentials") ever does appear, click **Always Allow**, or you'll be
-   asked again on every 60-second refresh. QuotaBar only reads — never
-   writes — that login; see the security section below.
+1. **Connect Claude Code once.** The Claude section shows **Connect Claude
+   Code…** (App Store build: **Copy setup command**, then paste it in
+   Terminal). That installs QuotaBar's status line into Claude Code; see
+   "Claude Code status line" below. Gauges appear after your next message in
+   Claude Code. No password or Keychain prompt is involved.
 2. **Gauges appear** for every provider whose CLI is logged in. Codex,
    Gemini and Cursor sections show up automatically when `~/.codex/auth.json`,
    `~/.gemini/oauth_creds.json`, or the Cursor app's state database exist —
@@ -57,8 +57,12 @@ no account, no sign-up, and no configuration of its own.
 
 ## Security: what the app does with your tokens
 
-- It **reads** each provider's credentials from the store its own CLI uses
-  (Claude: Keychain, Codex: `~/.codex/auth.json`, Gemini: its OAuth cache,
+- **Claude: no credentials at all.** Usage comes from the `rate_limits` field
+  Claude Code itself passes to its status line, saved by QuotaBar's bridge to
+  `~/.quotabar/claude-status.json`. (Anthropic doesn't permit third-party
+  apps to collect or use Claude.ai credentials, so QuotaBar doesn't.)
+- For the others it **reads** each provider's credentials from the store its
+  own CLI uses (Codex: `~/.codex/auth.json`, Gemini: its OAuth cache,
   Cursor: the session token in
   `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`,
   opened read-only). It never writes, refreshes, or deletes credentials.
@@ -97,10 +101,10 @@ It differs from the DMG:
 
 - **Claude Code and Codex only.** Gemini and Cursor need file and process
   access the App Sandbox doesn't grant.
-- **Claude** is read the same way as the DMG (`/usr/bin/security`, no
-  prompt — verified inside the sandbox); if that fails it falls back to
-  Security.framework, which shows macOS's consent prompt and pauses polling
-  after a Deny.
+- **Claude** comes from the same status-line file as the DMG, read through a
+  read-only sandbox exception for `~/.quotabar/claude-status.json`. The
+  sandbox can't edit `~/.claude/settings.json`, so setup is **Copy setup
+  command** + paste in Terminal.
 - **Codex** is read through a read-only sandbox exception scoped to the single file `~/.codex/auth.json`.
 - **Re-login** copies the CLI command to the clipboard instead of opening
   Terminal.
@@ -156,10 +160,32 @@ it does, the refresh token itself has expired.
   hits its limit, plus — optionally — when it crosses your threshold (set in
   the popover; off by default).
 
+## Claude Code status line
+
+Claude Code runs a user-configured status line command and passes it a JSON
+description of the session, which for Pro/Max subscribers includes
+`rate_limits.five_hour` / `rate_limits.seven_day` (`used_percentage`,
+`resets_at`). QuotaBar's bridge, `Resources/quotabar-statusline` (plain
+`sh` + `plutil` + `osascript`), is that command:
+
+- It saves **only** `rate_limits` plus a timestamp to
+  `~/.quotabar/claude-status.json` — not the folder, model, transcript or cost.
+- A status line you already had keeps working: it is saved on install, run
+  with the same input on every update (its output is what Claude Code shows),
+  and restored on uninstall. Without one, the bar shows `5h 11% · 7d 10%`.
+- `quotabar-statusline --install` copies itself to `~/.quotabar/`, backs up
+  `~/.claude/settings.json` to `settings.json.quotabar-backup`, and sets
+  `statusLine` (honours `CLAUDE_CONFIG_DIR`). `--uninstall` restores the
+  previous status line.
+
+Limits: numbers update only while Claude Code is running (the popover says
+how old they are); a window past its reset time is hidden until Claude Code
+reports again; per-model weekly limits aren't in the documented data, so
+they aren't shown. Claude desktop-app-only use has no documented feed.
+
 ## How it works
-For Claude, reads the OAuth token via `security find-generic-password -s "Claude Code-credentials"`,
-calls `GET /api/oauth/usage`, and renders the windows. Codex, Gemini and Cursor
-work the same way against their own usage endpoints (Cursor: the
+Claude: reads `~/.quotabar/claude-status.json` (above). Codex, Gemini and
+Cursor call their own usage endpoints (Cursor: the
 `DashboardService` RPCs its app uses for the usage panel). It polls every 60s; the
 countdown ticks locally every second. Only reads — never writes credentials.
 
@@ -168,5 +194,6 @@ countdown ticks locally every second. Only reads — never writes credentials.
 swift test            # pure-logic unit tests (model, decoder, alerts, store)
 ```
 The suite covers the model, decoders, alerts, store, coordinator, auth
-recovery, and launcher. Network and Keychain access sit behind a protocol and
-are not unit-tested.
+recovery, and launcher. Network access sits behind a protocol and is not
+unit-tested. The status-line bridge has its own suite:
+`Tests/bridge/test-statusline.sh` (runs in a temporary `HOME`).

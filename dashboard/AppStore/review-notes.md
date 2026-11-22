@@ -1,39 +1,48 @@
 # App Review notes (paste into "Notes" in App Store Connect)
 
 QuotaBar is a menu-bar utility (LSUIElement — no Dock icon, no windows) for
-developers who use the Claude Code and/or Codex command-line tools. It shows
+developers who use Claude Code and/or the Codex command-line tool. It shows
 how much of their subscription usage limits they have consumed.
 
 HOW TO TEST
-1. Install a CLI and log in with a Claude Pro/Max or ChatGPT Plus/Pro account:
+1. Install the tools and log in with a Claude Pro/Max or ChatGPT Plus/Pro
+   account:
      npm install -g @anthropic-ai/claude-code && claude     (log in)
      npm install -g @openai/codex && codex login
 2. Launch QuotaBar. A welcome window explains what the app reads and how
    it is used; nothing is read until you click Continue.
-3. Click the "◔ N%" item in the menu bar to see the gauges.
+3. Claude Code: in the popover's Claude section click "Copy setup command",
+   paste it into Terminal and run it. Then send any message in Claude Code;
+   the Claude gauges appear within a minute.
+4. Click the "◔ N%" item in the menu bar to see the gauges.
 A demo video is attached / available at: <link>
-Without a logged-in CLI the popover shows "Not signed in." and a
-"Copy login command" button — that is the expected empty state.
+Without setup the Claude section shows "Claude Code isn't connected yet." and
+"Copy setup command"; without a Codex login the Codex section is hidden.
+Both are expected empty states.
+
+HOW CLAUDE DATA IS OBTAINED (no credentials)
+QuotaBar never reads Claude credentials and makes no Claude network requests.
+Claude Code supports a user-configured "status line" command and passes it a
+documented JSON payload that includes `rate_limits` (5-hour and weekly usage
+percentages). The setup command (run by the user in Terminal, outside the
+app) installs a small shell script bundled in the app's Resources as that
+status line; it writes only `rate_limits` and a timestamp to
+~/.quotabar/claude-status.json. The app itself never runs any executable.
 
 WHY THE ENTITLEMENTS ARE NEEDED
-- Keychain: the Claude Code CLI stores its login in the user's login
-  Keychain, writing it with Apple's /usr/bin/security tool. QuotaBar reads
-  that item read-only by running the same system tool
-  (`security find-generic-password -s "Claude Code-credentials" -w`), only
-  after the user has read the welcome screen and pressed Continue. If that
-  fails, it falls back to SecItemCopyMatching, which shows the standard
-  macOS consent prompt. The item is never modified. No other executable is
-  run and no code is downloaded.
-- com.apple.security.temporary-exception.files.home-relative-path.read-only
-  (/.codex/auth.json — a single file, not the folder): the Codex CLI keeps
-  its login there. QuotaBar reads that one file, read-only, so users need no
-  manual setup; other files in ~/.codex stay inaccessible. It never writes
-  anywhere outside its container.
-- network.client: to request usage from api.anthropic.com and chatgpt.com.
+- com.apple.security.temporary-exception.files.home-relative-path.read-only,
+  two single files (not folders), read-only:
+  - /.quotabar/claude-status.json — the Claude usage numbers described above.
+  - /.codex/auth.json — the Codex CLI keeps its login there; QuotaBar reads
+    that one file so Codex users need no manual setup. Other files in
+    ~/.codex stay inaccessible.
+  The app never writes anywhere outside its container.
+- network.client: to request Codex usage from chatgpt.com.
 
 PRIVACY
-Credentials never leave the Mac except to their own provider. No analytics,
-no third-party servers. Apart from Apple's /usr/bin/security (above), the
-app does not run other executables or download code; the "Copy login command" button only places text on the pasteboard.
+The Codex login never leaves the Mac except to OpenAI. No analytics, no
+third-party servers. The app does not run other executables or download
+code; the "Copy setup command" / "Copy login command" buttons only place
+text on the pasteboard.
 
 QuotaBar is not affiliated with Anthropic or OpenAI; the listing says so.
