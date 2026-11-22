@@ -151,6 +151,7 @@ private struct ProviderSection: View {
         case .network(let m): return "Network error: \(m)"
         case .decode: return "Couldn't read the usage response."
         case .accessDenied: return "Keychain access denied."
+        case .notConnected: return "Not connected yet."
         case .unsupported(let m): return m  // normally hidden; see visibleEntries
         // Auth errors are handled above; an unknown provider id lands here.
         case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."

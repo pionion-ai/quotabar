@@ -7,6 +7,8 @@ enum FetchError: Error, Equatable {
     case rateLimited
     case network(String)
     case decode
+    /// Claude: the status-line bridge hasn't written any data yet.
+    case notConnected
     /// The user denied this app access to the credential (Keychain "Deny").
     /// Polling pauses until they retry, so the dialog doesn't reappear every minute.
     case accessDenied
