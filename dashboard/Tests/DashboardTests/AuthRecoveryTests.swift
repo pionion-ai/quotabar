@@ -42,10 +42,36 @@ final class AuthRecoveryTests: XCTestCase {
                        "Copied “claude” — paste it in Terminal")
     }
 
-    func testAccessDeniedHasNoLoginPromptButAStaleMessage() {
-        XCTAssertNil(AuthRecovery.prompt(for: .accessDenied, provider: "claude"))
-        XCTAssertEqual(AuthRecovery.staleMessage(for: .accessDenied, provider: "claude"),
-                       "Keychain access denied — numbers may be stale")
+
+    // MARK: - Claude: status-line bridge setup
+
+    func testClaudeNotConnectedOffersSetupInTerminal() {
+        let p = AuthRecovery.prompt(for: .notConnected, provider: "claude",
+                                    setupScript: "/Applications/QuotaBar.app/Contents/Resources/quotabar-statusline")
+        XCTAssertEqual(p?.message, "Claude Code isn’t connected yet.")
+        XCTAssertEqual(p?.buttonTitle, "Connect Claude Code…")
+        XCTAssertEqual(p?.command, "'/Applications/QuotaBar.app/Contents/Resources/quotabar-statusline' --install")
+    }
+
+    func testClaudeNotConnectedCopyMode() {
+        let p = AuthRecovery.prompt(for: .notConnected, provider: "claude", mode: .copyCommand,
+                                    setupScript: "/A/quotabar-statusline")
+        XCTAssertEqual(p?.buttonTitle, "Copy setup command")
+        XCTAssertEqual(p?.command, "'/A/quotabar-statusline' --install")
+    }
+
+    /// A path with a single quote must not break out of the shell quoting.
+    func testSetupCommandQuotesSafely() {
+        XCTAssertEqual(AuthRecovery.setupCommand(script: "/x/it's/q"), #"'/x/it'\''s/q' --install"#)
+    }
+
+    func testClaudeSetupHint() {
+        XCTAssertEqual(AuthRecovery.installHint(for: .notConnected, provider: "claude"),
+                       "Adds a status line to Claude Code that saves your usage limits for QuotaBar.")
+    }
+
+    func testNotConnectedWithoutScriptHasNoButton() {
+        XCTAssertNil(AuthRecovery.prompt(for: .notConnected, provider: "claude", setupScript: nil))
     }
 
     func testUnknownProviderFailsClosed() {

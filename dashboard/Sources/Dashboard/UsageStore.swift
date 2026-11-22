@@ -20,10 +20,6 @@ final class UsageStore: ObservableObject {
     /// avoid hammering a rate-limited endpoint.
     private var backoffUntil: Date?
 
-    /// Set after `.accessDenied`: every fetch would raise the Keychain dialog
-    /// again, so automatic refreshes stop until `retry()`.
-    private var pausedForAccess = false
-
     /// Set once the provider reports `.unsupported`: the store stops polling
     /// and the popover hides it.
     var isRetired: Bool { if case .failed(.unsupported) = loadState { return true }; return false }
@@ -85,7 +81,7 @@ final class UsageStore: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        if isRetired || pausedForAccess { return }
+        if isRetired { return }
         // Skip the network call while a rate-limit backoff is active.
         if let until = backoffUntil, now() < until { return }
 
@@ -107,7 +103,6 @@ final class UsageStore: ObservableObject {
 
             let fetchError = (error as? FetchError) ?? .network(error.localizedDescription)
             lastError = fetchError
-            if fetchError == .accessDenied { pausedForAccess = true }
             // Permanent: last-good data will never refresh again, so drop it.
             if case .unsupported = fetchError { loadState = .failed(fetchError); return }
             // Keep last-good gauges visible on a transient failure; only blank
@@ -116,12 +111,6 @@ final class UsageStore: ObservableObject {
             // Back off on rate limits so we stop hammering the endpoint.
             if fetchError == .rateLimited { backoffUntil = now().addingTimeInterval(300) }
         }
-    }
-
-    /// User-initiated: ask again after an `.accessDenied` pause.
-    func retry() async {
-        pausedForAccess = false
-        await refresh()
     }
 
     private var hasLoadedData: Bool {

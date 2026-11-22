@@ -72,3 +72,16 @@ final class ClaudeStatusProviderTests: XCTestCase {
         XCTAssertEqual(ClaudeStatusProvider.statusPath(home: "/Users/x"), "/Users/x/.quotabar/claude-status.json")
     }
 }
+
+final class EmptyStateCopyTests: XCTestCase {
+    /// Claude's data arrives with Claude Code activity; "none reported" would
+    /// read as broken.
+    func testClaudeEmptyStateExplainsWhereDataComesFrom() {
+        XCTAssertEqual(ProviderSectionCopy.emptyMessage(provider: "claude"),
+                       "Waiting for Claude Code — usage appears after your next message there.")
+    }
+
+    func testOtherProvidersKeepGenericEmptyState() {
+        XCTAssertEqual(ProviderSectionCopy.emptyMessage(provider: "codex"), "No usage windows reported.")
+    }
+}

@@ -59,6 +59,7 @@ cp "$BIN" "$APP/Contents/MacOS/Dashboard"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp Resources/PrivacyInfo.xcprivacy "$APP/Contents/Resources/PrivacyInfo.xcprivacy"
+install -m 755 Resources/quotabar-statusline "$APP/Contents/Resources/quotabar-statusline"
 
 PLIST="$APP/Contents/Info.plist"
 [[ -n "${BUILD_NUMBER:-}" ]] && /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"

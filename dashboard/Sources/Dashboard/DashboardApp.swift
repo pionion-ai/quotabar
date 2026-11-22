@@ -15,7 +15,7 @@ struct DashboardApp: App {
         let settings = Settings.load()
         let enabled = Set(Flavor.providerIDs(appStore: Flavor.isAppStore))
 
-        let claudeStore = UsageStore(provider: UsageClient.live(), threshold: settings.threshold)
+        let claudeStore = UsageStore(provider: ClaudeStatusProvider.live(), threshold: settings.threshold)
         claudeStore.onAlerts = { Notifier.post($0, provider: "Claude Code") }
         let claude = DashboardCoordinator.ProviderEntry(
             id: "claude", displayName: "Claude Code", tag: "C", store: claudeStore

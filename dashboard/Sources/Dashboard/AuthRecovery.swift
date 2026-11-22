@@ -47,11 +47,30 @@ enum AuthRecovery {
 
     /// Non-nil only for failures the user can fix by re-running a CLI.
     static func prompt(for error: FetchError, provider: String,
-                       mode: ReloginMode = .launchTerminal) -> ReloginPrompt? {
+                       mode: ReloginMode = .launchTerminal,
+                       setupScript: String? = bundledSetupScript) -> ReloginPrompt? {
+        // Claude has no login to renew: it is "connected" by installing the
+        // status-line bridge, which saves Claude Code's own usage numbers.
+        if provider == "claude", error == .notConnected {
+            guard let script = setupScript else { return nil }
+            return ReloginPrompt(message: "Claude Code isn’t connected yet.",
+                                 buttonTitle: mode == .copyCommand ? "Copy setup command" : "Connect Claude Code…",
+                                 command: setupCommand(script: script))
+        }
         guard let cli = cli(for: provider),
               let message = message(for: error, provider: provider) else { return nil }
         let title = mode == .copyCommand ? "Copy login command" : "Re-login to \(cli.name)…"
         return ReloginPrompt(message: message, buttonTitle: title, command: cli.command)
+    }
+
+    /// The bridge script inside the app bundle (nil under bare `swift run`).
+    static var bundledSetupScript: String? {
+        Bundle.main.path(forResource: "quotabar-statusline", ofType: nil)
+    }
+
+    /// Shell command that installs the bridge; the path is single-quoted.
+    static func setupCommand(script: String) -> String {
+        "'" + script.replacingOccurrences(of: "'", with: "'\\''") + "' --install"
     }
 
     /// Shown briefly after a copy-mode button press.
@@ -64,6 +83,9 @@ enum AuthRecovery {
     /// any CLI. Shown only for .notLoggedIn — an *expired* session proves the
     /// CLI exists.
     static func installHint(for error: FetchError, provider: String) -> String? {
+        if provider == "claude", error == .notConnected {
+            return "Adds a status line to Claude Code that saves your usage limits for QuotaBar."
+        }
         guard case .notLoggedIn = error else { return nil }
         switch provider {
         case "claude": return "No CLI yet? npm install -g @anthropic-ai/claude-code"
@@ -84,7 +106,6 @@ enum AuthRecovery {
         }
         switch error {
         case .rateLimited: return "Rate limited — retrying soon"
-        case .accessDenied: return "Keychain access denied — numbers may be stale"
         default:           return "Couldn't refresh — showing last update"
         }
     }

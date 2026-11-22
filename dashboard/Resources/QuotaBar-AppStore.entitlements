@@ -7,8 +7,13 @@
     <key>com.apple.security.app-sandbox</key><true/>
     <!-- Usage endpoints: api.anthropic.com, chatgpt.com -->
     <key>com.apple.security.network.client</key><true/>
-    <!-- Read-only access to the Codex CLI's login file only (~/.codex/auth.json). -->
+    <!-- Read-only, single files: the Codex CLI's login (~/.codex/auth.json) and
+         the usage numbers QuotaBar's Claude Code status line saves
+         (~/.quotabar/claude-status.json). -->
     <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
-    <array><string>/.codex/auth.json</string></array>
+    <array>
+        <string>/.codex/auth.json</string>
+        <string>/.quotabar/claude-status.json</string>
+    </array>
 </dict>
 </plist>

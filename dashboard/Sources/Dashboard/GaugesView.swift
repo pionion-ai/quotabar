@@ -8,6 +8,15 @@ private func swiftUIColor(_ c: GaugeColor) -> Color {
     }
 }
 
+/// Provider-specific wording for the popover. Pure, so it's testable.
+enum ProviderSectionCopy {
+    static func emptyMessage(provider: String) -> String {
+        provider == "claude"
+            ? "Waiting for Claude Code — usage appears after your next message there."
+            : "No usage windows reported."
+    }
+}
+
 /// One labeled provider block in the popover: a header with the provider name,
 /// then its loadState-driven content. Each provider ticks its own clock via
 /// `store.currentTime`.
@@ -51,7 +60,13 @@ private struct ProviderSection: View {
         }
         let quotas = healthy.filter { $0.style != .share }
         let shares = healthy.filter { $0.style == .share }
-        if !quotas.isEmpty { gaugeGrid(quotas, now: now) }
+        if !quotas.isEmpty {
+            gaugeGrid(quotas, now: now)
+            // e.g. Claude's "updated 3 min ago · updates while Claude Code runs"
+            if let note = quotas.first?.note {
+                Text(note).font(.caption2).foregroundStyle(.secondary)
+            }
+        }
         if !shares.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Usage value by model").font(.caption).foregroundStyle(.secondary)
@@ -62,7 +77,7 @@ private struct ProviderSection: View {
             gaugeGrid(shares, now: now)
         }
         if reached.isEmpty && healthy.isEmpty {
-            Text("No usage windows reported.")
+            Text(ProviderSectionCopy.emptyMessage(provider: providerID))
                 .font(.callout).foregroundStyle(.secondary)
         }
         if let checked = store.lastChecked {
@@ -77,7 +92,6 @@ private struct ProviderSection: View {
                 if let prompt = AuthRecovery.prompt(for: err, provider: providerID, mode: .current) {
                     reloginButton(prompt)
                 }
-                if err == .accessDenied { retryAccessButton }
             }
         }
     }
@@ -141,7 +155,6 @@ private struct ProviderSection: View {
                 .font(.callout).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)  // wrap: server messages are long
                 .textSelection(.enabled)
-            if error == .accessDenied { retryAccessButton }
         }
     }
 
@@ -150,18 +163,11 @@ private struct ProviderSection: View {
         case .rateLimited: return "Rate limited — pausing for a few minutes."
         case .network(let m): return "Network error: \(m)"
         case .decode: return "Couldn't read the usage response."
-        case .accessDenied: return "Keychain access denied."
         case .notConnected: return "Not connected yet."
         case .unsupported(let m): return m  // normally hidden; see visibleEntries
         // Auth errors are handled above; an unknown provider id lands here.
         case .authExpired, .notLoggedIn: return "Sign-in needed — run the CLI for \(title)."
         }
-    }
-
-    /// After a Keychain "Deny" the store stops polling; this asks once more.
-    private var retryAccessButton: some View {
-        Button("Ask for Keychain access again") { Task { await store.retry() } }
-            .font(.caption)
     }
 
     @ViewBuilder private func reloginButton(_ prompt: ReloginPrompt) -> some View {
