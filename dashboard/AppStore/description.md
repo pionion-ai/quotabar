@@ -42,5 +42,6 @@ tools use and may change without notice.
 usage,quota,limit,menu bar,developer,cli,ai,coding,tokens,rate limit
 
 ## URLs
-- Support URL: https://github.com/pionion-ai/quotabar/issues
-- Privacy Policy URL: host `privacy-policy.md` (e.g. GitHub Pages) and link it
+(No GitHub links anywhere in the App Store listing or build.)
+- Support URL: TODO — a support page on our own site
+- Privacy Policy URL: TODO — `privacy-policy.md` hosted on our own site

@@ -238,13 +238,14 @@ struct GaugesView: View {
 
     /// App identity + escape hatches. The popover is the app's only surface
     /// (menu-bar-only), so this is the one place a user can find the version,
-    /// the project page, and Quit.
+    /// the project page (not in the App Store build), and Quit.
     private var aboutFooter: some View {
         HStack(spacing: 8) {
             Text("QuotaBar \(Self.appVersion)")
                 .font(.caption2).foregroundStyle(.secondary)
-            Link("GitHub", destination: URL(string: "https://github.com/pionion-ai/quotabar")!)
-                .font(.caption2)
+            if let project = Flavor.projectLink(appStore: Flavor.isAppStore) {
+                Link("GitHub", destination: project).font(.caption2)
+            }
             Button("How it works", action: onHowItWorks)
                 .buttonStyle(.link).font(.caption2)
             Spacer()

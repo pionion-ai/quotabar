@@ -27,7 +27,7 @@ on your Mac.
 **No tracking.** No analytics, no crash reporting, no advertising
 identifiers, no servers operated by us.
 
-**Third parties.** Anthropic and OpenAI process requests under their own
-privacy policies.
+**Third parties.** OpenAI processes Codex usage requests under its own
+privacy policy. QuotaBar sends nothing to Anthropic.
 
-**Contact:** https://github.com/pionion-ai/quotabar/issues
+**Contact:** TODO — support page or address on our own site

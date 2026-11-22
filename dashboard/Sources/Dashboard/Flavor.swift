@@ -15,4 +15,9 @@ enum Flavor {
     static func providerIDs(appStore: Bool) -> [String] {
         appStore ? ["claude", "codex"] : ["claude", "codex", "gemini", "cursor"]
     }
+
+    /// Footer link to the project page; none in the App Store build.
+    static func projectLink(appStore: Bool) -> URL? {
+        appStore ? nil : URL(string: "https://github.com/pionion-ai/quotabar")
+    }
 }

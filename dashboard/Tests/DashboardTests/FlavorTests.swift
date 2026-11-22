@@ -9,4 +9,10 @@ final class FlavorTests: XCTestCase {
     func testDirectFlavorHasAllProviders() {
         XCTAssertEqual(Flavor.providerIDs(appStore: false), ["claude", "codex", "gemini", "cursor"])
     }
+
+    /// The App Store build must not point users at GitHub.
+    func testProjectLinkOnlyOutsideTheAppStore() {
+        XCTAssertNil(Flavor.projectLink(appStore: true))
+        XCTAssertEqual(Flavor.projectLink(appStore: false)?.absoluteString, "https://github.com/pionion-ai/quotabar")
+    }
 }
