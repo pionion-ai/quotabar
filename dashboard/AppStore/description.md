@@ -3,7 +3,7 @@
 **Name:** QuotaBar
 **Subtitle (30 chars max):** AI coding usage in your menu bar
 **Category:** Developer Tools
-**Price:** Free (suggested)
+**Price:** US$4.99 (paid upfront, no in-app purchases)
 
 ## Promotional text (170 chars max)
 See how much of your Claude Code and Codex limits you've used — and exactly
