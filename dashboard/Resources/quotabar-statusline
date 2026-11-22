@@ -1,0 +1,112 @@
+#!/bin/sh
+# QuotaBar status-line bridge for Claude Code.
+#
+# Claude Code runs its status line command with a JSON description of the
+# session on stdin; for Pro/Max subscribers that JSON includes `rate_limits`
+# (five_hour / seven_day: used_percentage, resets_at). This script saves ONLY
+# that object, plus a timestamp, to ~/.quotabar/claude-status.json, which the
+# QuotaBar menu-bar app reads. Nothing else from the session (folder, model,
+# transcript, cost) is written, and no login or token is ever touched.
+#
+#   quotabar-statusline              status-line mode (stdin = Claude Code JSON)
+#   quotabar-statusline --install    make this Claude Code's status line
+#   quotabar-statusline --uninstall  restore the previous status line
+#
+# A status line you already had keeps working: it is saved on install, run
+# with the same input on every update, and restored on uninstall.
+# Uses only tools that ship with macOS (sh, plutil, osascript).
+set -u
+
+QB="$HOME/.quotabar"
+STATUS="$QB/claude-status.json"
+PREV="$QB/previous-statusline.json"
+INSTALLED="$QB/quotabar-statusline"
+SETTINGS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+
+# Edit settings.json with JavaScript for Automation: keeps key order and
+# indentation (plutil would rewrite the file on one line). Aborts, leaving the
+# file untouched, if it isn't valid JSON.
+edit_settings() { # $1 = install | uninstall
+  /usr/bin/osascript -l JavaScript - "$1" "$SETTINGS" "$INSTALLED" "$PREV" <<'JS'
+ObjC.import("Foundation");
+function read(path) {
+  const s = $.NSString.stringWithContentsOfFileEncodingError(path, $.NSUTF8StringEncoding, null);
+  return s.isNil() ? null : ObjC.unwrap(s);
+}
+function write(path, text) {
+  const dir = $(path).stringByDeletingLastPathComponent;
+  $.NSFileManager.defaultManager.createDirectoryAtPathWithIntermediateDirectoriesAttributesError(dir, true, $(), null);
+  if (!$(text).writeToFileAtomicallyEncodingError(path, true, $.NSUTF8StringEncoding, null))
+    throw new Error("could not write " + path);
+}
+function remove(path) { $.NSFileManager.defaultManager.removeItemAtPathError(path, null); }
+function run(argv) {
+  const [mode, settingsPath, self, prevPath] = argv;
+  const raw = read(settingsPath);
+  let obj;
+  try { obj = raw === null || raw.trim() === "" ? {} : JSON.parse(raw); }
+  catch (e) { throw new Error(settingsPath + " is not valid JSON; nothing was changed"); }
+  const ours = obj.statusLine && obj.statusLine.command === self;
+  if (mode === "install") {
+    if (ours) return "QuotaBar is already Claude Code's status line.";
+    if (raw !== null) write(settingsPath + ".quotabar-backup", raw);
+    if (obj.statusLine) write(prevPath, JSON.stringify(obj.statusLine, null, 2) + "\n");
+    else remove(prevPath);
+    obj.statusLine = { type: "command", command: self };
+    write(settingsPath, JSON.stringify(obj, null, 2) + "\n");
+    return "Installed. QuotaBar shows Claude usage after your next message in Claude Code.";
+  }
+  if (!ours) return "QuotaBar is not Claude Code's status line; nothing to undo.";
+  const prev = read(prevPath);
+  if (prev !== null) obj.statusLine = JSON.parse(prev); else delete obj.statusLine;
+  write(settingsPath, JSON.stringify(obj, null, 2) + "\n");
+  remove(prevPath);
+  return "Removed. Claude Code's previous status line is restored.";
+}
+JS
+}
+
+case "${1:-}" in
+  --install)
+    mkdir -p "$QB" || exit 1
+    if [ "$0" != "$INSTALLED" ]; then
+      cp -f "$0" "$INSTALLED.tmp.$$" && chmod 755 "$INSTALLED.tmp.$$" && mv -f "$INSTALLED.tmp.$$" "$INSTALLED" || exit 1
+    fi
+    edit_settings install
+    exit $?
+    ;;
+  --uninstall)
+    edit_settings uninstall || exit $?
+    rm -f "$INSTALLED" "$STATUS"
+    exit 0
+    ;;
+esac
+
+# ---- status-line mode ----
+input=$(cat)
+
+limits=$(printf '%s' "$input" | /usr/bin/plutil -extract rate_limits json -o - - 2>/dev/null)
+if [ -n "$limits" ]; then
+  mkdir -p "$QB" && tmp="$STATUS.tmp.$$" &&
+    printf '{"rate_limits":%s,"written_at":%s}\n' "$limits" "$(date +%s)" > "$tmp" &&
+    mv -f "$tmp" "$STATUS"
+fi
+
+# Chain the status line the user had before installing QuotaBar.
+if [ -f "$PREV" ]; then
+  prev_cmd=$(/usr/bin/plutil -extract command raw -o - "$PREV" 2>/dev/null)
+  if [ -n "$prev_cmd" ]; then
+    printf '%s' "$input" | /bin/sh -c "$prev_cmd"
+    exit $?
+  fi
+fi
+
+pct() { # $1 = window; prints rounded percent or nothing
+  v=$(printf '%s' "$input" | /usr/bin/plutil -extract "rate_limits.$1.used_percentage" raw -o - - 2>/dev/null) &&
+    printf '%.0f' "$v"
+}
+five=$(pct five_hour); week=$(pct seven_day)
+out=""
+[ -n "$five" ] && out="5h $five%"
+[ -n "$week" ] && out="${out:+$out · }7d $week%"
+printf '%s\n' "$out"
