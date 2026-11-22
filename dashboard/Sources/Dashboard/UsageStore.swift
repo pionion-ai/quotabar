@@ -105,6 +105,13 @@ final class UsageStore: ObservableObject {
             lastError = fetchError
             // Permanent: last-good data will never refresh again, so drop it.
             if case .unsupported = fetchError { loadState = .failed(fetchError); return }
+            // Claude's bridge file is gone (e.g. uninstalled): nothing is coming back.
+            if fetchError == .notConnected { loadState = .failed(fetchError); return }
+            // A percentage past its reset is wrong, not just stale: drop it.
+            if case .loaded(let old) = loadState {
+                let live = old.filter { $0.resetsAt > now() }
+                if live.count != old.count { loadState = .loaded(live) }
+            }
             // Keep last-good gauges visible on a transient failure; only blank
             // to the error view when we have no prior loaded data.
             if !hasLoadedData { loadState = .failed(fetchError) }

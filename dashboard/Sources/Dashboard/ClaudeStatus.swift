@@ -6,8 +6,8 @@ import Foundation
 /// sanctioned source of subscription usage; no credential is ever read.
 enum ClaudeStatusDecoder {
     private struct Window: Decodable {
-        let used_percentage: Double
-        let resets_at: Double
+        let used_percentage: Double?
+        let resets_at: Double?
     }
     private struct RateLimits: Decodable {
         let five_hour: Window?
@@ -26,11 +26,12 @@ enum ClaudeStatusDecoder {
             ("seven_day", "7-day", file.rate_limits.seven_day),
         ]
         return known.compactMap { k in
-            guard let w = k.window else { return nil }
-            let resets = Date(timeIntervalSince1970: w.resets_at)
+            // A window missing a field is skipped; the other one still shows.
+            guard let w = k.window, let used = w.used_percentage, let at = w.resets_at else { return nil }
+            let resets = Date(timeIntervalSince1970: at)
             // Past its reset the percentage is stale (Claude Code drops it too).
             guard resets > now else { return nil }
-            return UsageWindow(key: k.key, label: k.label, usedPercent: w.used_percentage,
+            return UsageWindow(key: k.key, label: k.label, usedPercent: used,
                                resetsAt: resets, note: note)
         }
     }

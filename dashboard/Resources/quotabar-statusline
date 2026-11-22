@@ -40,18 +40,30 @@ function write(path, text) {
     throw new Error("could not write " + path);
 }
 function remove(path) { $.NSFileManager.defaultManager.removeItemAtPathError(path, null); }
+// Any copy of this script (other path, "~/" form, another user's home) is
+// ours: never save it as the "previous" status line, or it would chain itself.
+function isOurs(cmd) {
+  return typeof cmd === "string" && /(^|\/)quotabar-statusline['"]?\s*$/.test(cmd.trim());
+}
 function run(argv) {
-  const [mode, settingsPath, self, prevPath] = argv;
+  const [mode, linkPath, self, prevPath] = argv;
+  // Edit the real file behind a symlink (dotfiles repos), keeping the link.
+  const settingsPath = ObjC.unwrap($(linkPath).stringByResolvingSymlinksInPath);
   const raw = read(settingsPath);
+  if (raw === null && $.NSFileManager.defaultManager.fileExistsAtPath(settingsPath))
+    throw new Error(linkPath + " could not be read as UTF-8 text; nothing was changed");
   let obj;
   try { obj = raw === null || raw.trim() === "" ? {} : JSON.parse(raw); }
-  catch (e) { throw new Error(settingsPath + " is not valid JSON; nothing was changed"); }
-  const ours = obj.statusLine && obj.statusLine.command === self;
+  catch (e) { throw new Error(linkPath + " is not valid JSON; nothing was changed"); }
+  if (obj === null || typeof obj !== "object" || Array.isArray(obj))
+    throw new Error(linkPath + " is not a JSON object; nothing was changed");
+  const cmd = obj.statusLine && obj.statusLine.command;
+  const ours = isOurs(cmd);
   if (mode === "install") {
-    if (ours) return "QuotaBar is already Claude Code's status line.";
-    if (raw !== null) write(settingsPath + ".quotabar-backup", raw);
-    if (obj.statusLine) write(prevPath, JSON.stringify(obj.statusLine, null, 2) + "\n");
-    else remove(prevPath);
+    if (cmd === self) return "QuotaBar is already Claude Code's status line.";
+    if (raw !== null) write(linkPath + ".quotabar-backup", raw);
+    if (obj.statusLine && !ours) write(prevPath, JSON.stringify(obj.statusLine, null, 2) + "\n");
+    else if (!ours) remove(prevPath);
     obj.statusLine = { type: "command", command: self };
     write(settingsPath, JSON.stringify(obj, null, 2) + "\n");
     return "Installed. QuotaBar shows Claude usage after your next message in Claude Code.";
@@ -72,8 +84,10 @@ case "${1:-}" in
     if [ "$0" != "$INSTALLED" ]; then
       cp -f "$0" "$INSTALLED.tmp.$$" && chmod 755 "$INSTALLED.tmp.$$" && mv -f "$INSTALLED.tmp.$$" "$INSTALLED" || exit 1
     fi
-    edit_settings install
-    exit $?
+    edit_settings install || exit $?
+    # An empty file tells the app "connected, waiting for the first message".
+    [ -f "$STATUS" ] || printf '{"rate_limits":{},"written_at":%s}\n' "$(date +%s)" > "$STATUS"
+    exit 0
     ;;
   --uninstall)
     edit_settings uninstall || exit $?
@@ -92,18 +106,22 @@ if [ -n "$limits" ]; then
     mv -f "$tmp" "$STATUS"
 fi
 
-# Chain the status line the user had before installing QuotaBar.
-if [ -f "$PREV" ]; then
+# Chain the status line the user had before installing QuotaBar. Never chain
+# to a copy of this script, and never more than one level deep.
+if [ -z "${QUOTABAR_CHAIN:-}" ] && [ -f "$PREV" ]; then
   prev_cmd=$(/usr/bin/plutil -extract command raw -o - "$PREV" 2>/dev/null)
+  case "$prev_cmd" in
+    *quotabar-statusline|*quotabar-statusline\'|*quotabar-statusline\") prev_cmd="" ;;
+  esac
   if [ -n "$prev_cmd" ]; then
-    printf '%s' "$input" | /bin/sh -c "$prev_cmd"
+    printf '%s' "$input" | QUOTABAR_CHAIN=1 /bin/sh -c "$prev_cmd"
     exit $?
   fi
 fi
 
 pct() { # $1 = window; prints rounded percent or nothing
   v=$(printf '%s' "$input" | /usr/bin/plutil -extract "rate_limits.$1.used_percentage" raw -o - - 2>/dev/null) &&
-    printf '%.0f' "$v"
+    LC_ALL=C /usr/bin/printf '%.0f' "$v"   # plutil prints 11.400000 in any locale
 }
 five=$(pct five_hour); week=$(pct seven_day)
 out=""

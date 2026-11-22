@@ -32,6 +32,14 @@ final class ClaudeStatusDecoderTests: XCTestCase {
         XCTAssertEqual(try ClaudeStatusDecoder.windows(from: Data(#"{"rate_limits":{}}"#.utf8), now: now), [])
     }
 
+    /// One malformed window must not discard the valid one.
+    func testInvalidWindowIsSkippedNotFatal() throws {
+        let data = Data(#"{"rate_limits":{"five_hour":{"used_percentage":null,"resets_at":1795571999},"seven_day":{"used_percentage":10,"resets_at":1795600000}},"written_at":1795499820}"#.utf8)
+        XCTAssertEqual(try ClaudeStatusDecoder.windows(from: data, now: now).map(\.key), ["seven_day"])
+        let noReset = Data(#"{"rate_limits":{"five_hour":{"used_percentage":5},"seven_day":{"used_percentage":10,"resets_at":1795600000}}}"#.utf8)
+        XCTAssertEqual(try ClaudeStatusDecoder.windows(from: noReset, now: now).map(\.key), ["seven_day"])
+    }
+
     func testGarbageThrows() {
         XCTAssertThrowsError(try ClaudeStatusDecoder.windows(from: Data("nope".utf8), now: now))
         XCTAssertThrowsError(try ClaudeStatusDecoder.windows(from: Data("{}".utf8), now: now))

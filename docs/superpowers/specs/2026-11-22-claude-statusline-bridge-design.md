@@ -44,11 +44,13 @@ shipped in `Contents/Resources`; `--install` copies it to
 - `ClaudeStatusProvider: UsageProviding` reads the file each refresh (60 s
   timer + popover open). Windows: `five_hour` "5-hour", `seven_day` "7-day";
   a window whose `resets_at` has passed is dropped (as Claude Code does).
-  File missing → `.notConnected`; no live windows → `.waitingForClaudeCode`.
+  File missing → `.notConnected`; no live windows → the section's "Waiting for
+  Claude Code" empty state (install writes an empty file so this shows at once).
 - Freshness: `written_at` shown as "updated N min ago".
 - Setup UI in the Claude section when not connected:
-  DMG — **Connect Claude Code…** runs the bundled `--install` (after a
-  confirmation sheet saying exactly what changes); App Store — sandbox can't
+  DMG — **Connect Claude Code…** runs the bundled `--install` in Terminal
+  (ruling: no in-app sheet; the hint says what it does, Terminal shows the
+  command, a backup is written, the script reports the result); App Store — sandbox can't
   write `~/.claude`, so **Copy setup command** puts the `--install` command on
   the pasteboard ("paste it in Terminal").
 - App Store entitlement: read-only home-relative exception

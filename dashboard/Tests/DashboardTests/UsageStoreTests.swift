@@ -273,4 +273,35 @@ final class UsageStoreTests: XCTestCase {
         await mixed.refresh()
         XCTAssertEqual(mixed.pendingResetRefresh, futureResetsAt)
     }
+
+    // MARK: - Stale data after a failed refresh (review findings)
+
+    private final class SwitchProvider: UsageProviding {
+        var result: Result<[UsageWindow], FetchError>
+        init(_ r: Result<[UsageWindow], FetchError>) { result = r }
+        func fetch() async throws -> [UsageWindow] { try result.get() }
+    }
+
+    /// Uninstalling the bridge deletes the file: old gauges must not linger.
+    func testNotConnectedDropsLastGoodData() async {
+        let p = SwitchProvider(.success([win("five_hour", "5-hour", used: 40, resetsIn: 3600)]))
+        let store = UsageStore(provider: p, threshold: nil, now: { self.now })
+        await store.refresh()
+        p.result = .failure(.notConnected)
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .failed(.notConnected))
+    }
+
+    /// A failing refresh after a reset must not keep showing the pre-reset %.
+    func testFailedRefreshDropsWindowsPastTheirReset() async {
+        var clock = now
+        let p = SwitchProvider(.success([win("five_hour", "5-hour", used: 90, resetsIn: 60),
+                                         win("seven_day", "7-day", used: 10, resetsIn: 86_400)]))
+        let store = UsageStore(provider: p, threshold: nil, now: { clock })
+        await store.refresh()
+        clock = now.addingTimeInterval(120)
+        p.result = .failure(.decode)
+        await store.refresh()
+        XCTAssertEqual(store.loadState, .loaded([win("seven_day", "7-day", used: 10, resetsIn: 86_400)]))
+    }
 }

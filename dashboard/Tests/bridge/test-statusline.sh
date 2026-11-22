@@ -91,5 +91,56 @@ export CLAUDE_CONFIG_DIR="$HOME/altcfg"
 "$SCRIPT" --install >/dev/null
 check "CLAUDE_CONFIG_DIR used"     '[ -f "$HOME/altcfg/settings.json" ]'
 
+# --- review fixes -------------------------------------------------------
+unset CLAUDE_CONFIG_DIR
+# 1. unreadable (non-UTF-8) settings: abort, unchanged
+fresh
+mkdir -p "$HOME/.claude"; printf '{"model": "caf\351"}\n' > "$SETTINGS"; cp "$SETTINGS" "$HOME/orig"
+"$SCRIPT" --install >/dev/null 2>&1; rc=$?
+check "unreadable -> non-zero"     '[ $rc -ne 0 ]'
+check "unreadable unchanged"       'cmp -s "$SETTINGS" "$HOME/orig"'
+
+# 2. symlinked settings: link kept, target edited
+fresh
+mkdir -p "$HOME/.claude" "$HOME/dotfiles"; printf '{"model": "opus"}\n' > "$HOME/dotfiles/settings.json"
+ln -s "$HOME/dotfiles/settings.json" "$SETTINGS"
+"$SCRIPT" --install >/dev/null
+check "symlink kept"               '[ -L "$SETTINGS" ]'
+check "symlink target edited"      '[ "$(get statusLine.command "$HOME/dotfiles/settings.json")" = "$QB/quotabar-statusline" ]'
+
+# 3. install creates an empty status file so the app shows "waiting", not "connect"
+fresh
+"$SCRIPT" --install >/dev/null
+check "stub status file"           '[ "$(/usr/bin/plutil -extract rate_limits json -o - "$QB/claude-status.json")" = "{}" ]'
+printf '%s' "$PAYLOAD" | "$QB/quotabar-statusline" >/dev/null
+"$SCRIPT" --install >/dev/null
+check "stub keeps real data"       '[ -n "$(get rate_limits.five_hour.resets_at "$QB/claude-status.json")" ]'
+
+# 6. decimal-comma locale still prints correct percentages
+fresh
+out=$(printf '%s' "$PAYLOAD" | LC_ALL=de_DE.UTF-8 "$SCRIPT" 2>&1)
+check "locale-safe summary"        '[ "$out" = "5h 11% · 7d 10%" ]'
+
+# 7. a statusLine that is ours under another path is not saved as "previous"
+fresh
+mkdir -p "$HOME/.claude"
+printf '{"statusLine": {"type": "command", "command": "~/.quotabar/quotabar-statusline"}}\n' > "$SETTINGS"
+"$SCRIPT" --install >/dev/null
+check "tilde form not chained"     '[ ! -f "$QB/previous-statusline.json" ]'
+check "tilde form normalised"      '[ "$(get statusLine.command "$SETTINGS")" = "$QB/quotabar-statusline" ]'
+fresh
+mkdir -p "$HOME/.claude"
+printf '{"statusLine": {"type": "command", "command": "/Users/alice/.quotabar/quotabar-statusline"}}\n' > "$SETTINGS"
+"$SCRIPT" --install >/dev/null
+check "foreign path not chained"   '[ ! -f "$QB/previous-statusline.json" ]'
+"$SCRIPT" --uninstall >/dev/null
+check "foreign path uninstalls"    '! grep -q statusLine "$SETTINGS"'
+# a self-referencing previous file must not recurse forever
+fresh
+"$SCRIPT" --install >/dev/null
+printf '{"type": "command", "command": "%s"}\n' "$QB/quotabar-statusline" > "$QB/previous-statusline.json"
+out=$(printf '%s' "$PAYLOAD" | /usr/bin/perl -e 'alarm 10; exec @ARGV' "$QB/quotabar-statusline"); rc=$?
+check "self-chain terminates"      '[ $rc -eq 0 ] && [ "$out" = "5h 11% · 7d 10%" ]'
+
 echo "$((n-fails))/$n passed"
 [ $fails -eq 0 ]
