@@ -43,5 +43,6 @@ usage,quota,limit,menu bar,developer,cli,ai,coding,tokens,rate limit
 
 ## URLs
 (No GitHub links anywhere in the App Store listing or build.)
-- Support URL: TODO — a support page on our own site
-- Privacy Policy URL: TODO — `privacy-policy.md` hosted on our own site
+- Support URL: https://pionion.com/quotabar/
+- Privacy Policy URL: https://pionion.com/quotabar/privacy/
+  (source: ~/Projects/pionion-web-site/lookin-zz.github.io/site/quotabar/)

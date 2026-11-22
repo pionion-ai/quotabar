@@ -30,4 +30,5 @@ identifiers, no servers operated by us.
 **Third parties.** OpenAI processes Codex usage requests under its own
 privacy policy. QuotaBar sends nothing to Anthropic.
 
-**Contact:** TODO — support page or address on our own site
+**Contact:** Pionion — info@pionion.com (published at
+https://pionion.com/quotabar/privacy/)
